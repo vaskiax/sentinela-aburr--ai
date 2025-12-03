@@ -1,20 +1,35 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# Sentinela Aburrá AI
 
-This contains everything you need to run your app locally.
+**Sentinela Aburrá AI** is a specialized ML Ops platform designed to monitor, analyze, and predict criminal dynamics in the Valle de Aburrá region (Medellín, Colombia).
 
-View your app in AI Studio: https://ai.studio/apps/drive/168_3Tqyzt3VDH6xesVpodFXltH5j_DPR
+## Key Features
+
+- **Intelligent Scraping**: Targeted extraction of news articles using Google Search Operators and NLP to filter by relevance and date.
+- **NLP Analysis**: Uses Gemini 2.5 Flash to extract structured entities (Organizations, Ranks, Aliases) from unstructured text.
+- **Violence Risk Index**: A heuristic model that calculates the probability of instability based on the type of event (Capture/Death), the rank of the target, and the organization involved.
+- **Predictive Dashboard**: Visualizes risk scores, expected crime types, and affected zones.
+
+## Tech Stack
+
+- **Frontend**: React, Vite, TailwindCSS, Recharts.
+- **Backend**: FastAPI, Python, Pydantic.
+- **AI/ML**: Google Gemini API (NLP), Heuristic Risk Engine.
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+1. **Backend**:
 
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   uvicorn main:app --reload
+   ```
+2. **Frontend**:
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm install
+   npm run dev
+   ```
+3. **Environment**:
+   Ensure you have a `.env` file with `GEMINI_API_KEY`.

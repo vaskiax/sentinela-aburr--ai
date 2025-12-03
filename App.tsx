@@ -7,8 +7,10 @@ import DataPreview from './components/DataPreview';
 import Documentation from './components/Documentation';
 import AburraMap from './components/AburraMap';
 import ModelMetrics from './components/ModelMetrics';
+import CleaningReport from './components/CleaningReport';
+import TrainingInsights from './components/TrainingInsights';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { PredictionResult, ProcessingLog, ScrapingConfig, PipelineStage, ScrapedItem } from './types';
+import { PredictionResult, ProcessingLog, ScrapingConfig, PipelineStage, ScrapedItem, CleaningStats } from './types';
 import { MOCK_LOGS, PROJECT_STRUCTURE, MASTER_PREDICTOR_EVENTS, MASTER_PREDICTOR_RANKS, MASTER_TARGET_CRIMES } from './constants';
 import { api } from './services/api';
 import { useEffect } from 'react';
@@ -29,7 +31,7 @@ function App() {
   const [logs, setLogs] = useState<ProcessingLog[]>(MOCK_LOGS as ProcessingLog[]);
 
   const [result, setResult] = useState<PredictionResult | null>(null);
-  const [scrapeStats, setScrapeStats] = useState<{ counts: Record<string, number>; errors: Record<string, string> } | undefined>(undefined);
+  const [scrapeStats, setScrapeStats] = useState<CleaningStats | undefined>(undefined);
 
   // Polling for status updates
   useEffect(() => {
@@ -37,12 +39,12 @@ function App() {
       try {
         const status = await api.getStatus();
         setLogs(status.logs);
-        
+
         // Only update stage from backend if we're in a processing state
         // Don't override user navigation (DASHBOARD, CONFIGURATION)
         const processingStages: PipelineStage[] = ['SCRAPING', 'TRAINING', 'DATA_PREVIEW'];
         const isProcessing = processingStages.includes(pipelineStep);
-        
+
         if (isProcessing && status.stage !== pipelineStep) {
           setPipelineStep(status.stage);
         }
@@ -53,7 +55,7 @@ function App() {
           try {
             const stats = await api.getScrapeStats();
             setScrapeStats(stats);
-          } catch {}
+          } catch { }
         }
         if (status.stage === 'DASHBOARD' && !result) {
           const res = await api.getResult();
@@ -91,7 +93,7 @@ function App() {
       // CRITICAL: Capture and send current config IMMEDIATELY before scraping
       // Don't rely on previous setConfig calls - user may have changed selections
       const currentConfig = { ...scrapingConfig };
-      
+
       console.log('[Frontend] ===== CONFIG BEING SENT TO BACKEND =====');
       console.log('[Frontend] Organizations:', currentConfig.target_organizations);
       console.log('[Frontend] Combos:', currentConfig.local_combos.slice(0, 5));
@@ -99,20 +101,20 @@ function App() {
       console.log('[Frontend] Ranks:', currentConfig.predictor_ranks);
       console.log('[Frontend] Crimes:', currentConfig.target_crimes);
       console.log('[Frontend] ========================================');
-      
+
       // Send fresh config to backend
       await api.setConfig(currentConfig);
-      
-      setLogs(prev => [...prev, { id: (prev[prev.length-1]?.id || 0) + 1, timestamp: new Date().toLocaleTimeString(), stage: 'SCRAPING', message: 'Starting scraping…', status: 'success' } as any]);
-      
+
+      setLogs(prev => [...prev, { id: (prev[prev.length - 1]?.id || 0) + 1, timestamp: new Date().toLocaleTimeString(), stage: 'SCRAPING', message: 'Starting scraping…', status: 'success' } as any]);
+
       // Now start scraping with the fresh config
       await api.startScraping();
-      
+
       // Optimistically reflect stage change to improve UX
       setPipelineStep('SCRAPING');
     } catch (e) {
       console.error('Failed to start scraping', e);
-      setLogs(prev => [...prev, { id: (prev[prev.length-1]?.id || 0) + 1, timestamp: new Date().toLocaleTimeString(), stage: 'SCRAPING', message: 'Failed to start scraping', status: 'error' } as any]);
+      setLogs(prev => [...prev, { id: (prev[prev.length - 1]?.id || 0) + 1, timestamp: new Date().toLocaleTimeString(), stage: 'SCRAPING', message: 'Failed to start scraping', status: 'error' } as any]);
     }
   };
 
@@ -130,10 +132,10 @@ function App() {
 
     switch (pipelineStep) {
       case 'CONFIGURATION':
-        return <PipelineConfig 
-          config={scrapingConfig} 
-          setConfig={setScrapingConfig} 
-          onStartPipeline={handleStartScraping} 
+        return <PipelineConfig
+          config={scrapingConfig}
+          setConfig={setScrapingConfig}
+          onStartPipeline={handleStartScraping}
         />;
       case 'SCRAPING':
       case 'TRAINING':
@@ -147,7 +149,14 @@ function App() {
           </div>
         );
       case 'DATA_PREVIEW':
-        return <DataPreview data={scrapedData} onProceed={handleTrainModel} />;
+        return (
+          <div className="flex flex-col h-full overflow-hidden">
+            <CleaningReport stats={scrapeStats} />
+            <div className="flex-1 min-h-0">
+              <DataPreview data={scrapedData} onProceed={handleTrainModel} />
+            </div>
+          </div>
+        );
       case 'DASHBOARD':
       default:
         return (
@@ -189,6 +198,9 @@ function App() {
             </div>
 
             {/* Middle Section: Training Metrics & Confusion Matrix */}
+            {result?.model_metadata && (
+              <TrainingInsights metadata={result.model_metadata} />
+            )}
             {result?.training_metrics && (
               <ModelMetrics metrics={result.training_metrics} />
             )}
@@ -197,7 +209,7 @@ function App() {
             <div className="grid grid-cols-3 gap-6 min-h-[400px]">
               <div className="col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col">
                 <h3 className="text-xs font-bold text-slate-400 mb-4">RISK PROJECTION CURVE</h3>
-                <div className="flex-1">
+                <div className="flex-1 min-h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={result?.timeline_data}>
                       <defs>
@@ -228,7 +240,7 @@ function App() {
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex flex-col">
       {/* Navbar */}
       <nav className="h-14 border-b border-slate-800 bg-slate-950 px-4 flex items-center justify-between">
-        <button 
+        <button
           onClick={async () => {
             console.log('[Frontend] Logo clicked - resetting to fresh dashboard');
             // Reset backend first

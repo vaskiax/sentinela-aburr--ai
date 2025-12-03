@@ -28,10 +28,10 @@ export interface CriminalProfile {
 }
 
 export interface ModelFeatures {
-  rank_weight: number;      
-  org_influence_score: number; 
-  territory_volatility: number; 
-  status_impact: number;    
+  rank_weight: number;
+  org_influence_score: number;
+  territory_volatility: number;
+  status_impact: number;
 }
 
 export interface TrainingMetrics {
@@ -43,15 +43,31 @@ export interface TrainingMetrics {
   dataset_size: number;
 }
 
+export interface CleaningStats {
+  total_scraped: number;
+  filtered_relevance: number;
+  filtered_date: number;
+  duplicates_removed: number;
+  final_count: number;
+}
+
+export interface ModelMetadata {
+  regressors: string[];
+  targets: string[];
+  training_steps: string[];
+  model_type: string;
+}
+
 export interface PredictionResult {
-  risk_score: number; 
+  risk_score: number;
   expected_crime_type: string;
   affected_zones: string[];
   duration_days: number;
   confidence_interval: [number, number];
-  feature_importance: { feature: string; importance: number }[];
-  timeline_data: { day: string; risk_score: number }[];
-  training_metrics: TrainingMetrics; 
+  feature_importance: Array<{ feature: string; importance: number }>;
+  timeline_data: Array<{ day: string; risk_score: number }>;
+  training_metrics: TrainingMetrics;
+  model_metadata?: ModelMetadata;
 }
 
 export interface ProcessingLog {
@@ -92,7 +108,7 @@ export interface ScrapedItem {
   date: string;
   headline: string;
   snippet: string;
-  url: string; 
+  url: string;
   relevance_score: number;
   type: 'TRIGGER_EVENT' | 'CRIME_STAT'; // Strict separation for X and Y
 }

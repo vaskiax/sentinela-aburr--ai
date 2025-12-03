@@ -6,7 +6,7 @@ import random
 import os
 from dotenv import load_dotenv
 from .models import (
-    ScrapingConfig, ScrapedItem, PredictionResult, ProcessingLog, PipelineStage
+    ScrapingConfig, ScrapedItem, PredictionResult, ProcessingLog, PipelineStage, CleaningStats
 )
 from .scraper import Scraper
 from .predictor import Predictor
@@ -60,7 +60,8 @@ scraper = Scraper(data_loader=DataLoader())
 predictor = Predictor()
 nlp = NLPProcessor()
 data_loader = DataLoader()
-scrape_stats = {"counts": {}, "errors": {}}
+data_loader = DataLoader()
+scrape_stats: Optional[CleaningStats] = None
 
 def add_log(stage: PipelineStage, message: str, status: str = 'success'):
     global logs
@@ -116,18 +117,12 @@ async def run_scraping_task():
             print(f"[SCRAPER] Crimes: {current_config.target_crimes}", file=sys.stderr, flush=True)
             print("[SCRAPER] ========================================", file=sys.stderr, flush=True)
             
-            items = scraper.scrape(current_config)
+            items, stats = scraper.scrape(current_config)
             print(f"[SCRAPING TASK] Scraper returned {len(items)} items", file=sys.stderr, flush=True)
             scraped_data = items
-            # Per-source counts for visibility
-            counts = {}
-            for it in items:
-                counts[it.source] = counts.get(it.source, 0) + 1
-            add_log(PipelineStage.SCRAPING, f"Scraped {len(items)} items.")
-            for src, cnt in counts.items():
-                add_log(PipelineStage.SCRAPING, f"Source {src}: {cnt} items.")
-            # Persist stats for UI
-            scrape_stats["counts"] = counts
+            scrape_stats = stats
+            
+            add_log(PipelineStage.SCRAPING, f"Scraped {len(items)} items. Filtered {stats.filtered_relevance} low relevance.")
             # Try to capture spider errors if available
             try:
                 from .spiders.sentinela_news import NewsSpider

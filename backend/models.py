@@ -67,6 +67,31 @@ class PredictionResult(BaseModel):
     timeline_data: List[Dict[str, Any]] # { day: string; risk_score: number }
     training_metrics: TrainingMetrics
 
+    status: str # 'pending' | 'success' | 'error'
+
+class CleaningStats(BaseModel):
+    total_scraped: int
+    filtered_relevance: int
+    filtered_date: int
+    duplicates_removed: int
+    final_count: int
+
+class ModelMetadata(BaseModel):
+    regressors: List[str]
+    targets: List[str]
+    training_steps: List[str]
+    model_type: str
+
+class PredictionResult(BaseModel):
+    risk_score: float
+    expected_crime_type: str
+    affected_zones: List[str]
+    duration_days: int
+    confidence_interval: Tuple[float, float]
+    feature_importance: List[Dict[str, Any]] # { feature: string; importance: number }
+    training_metrics: TrainingMetrics
+    model_metadata: Optional[ModelMetadata] = None
+
 class ProcessingLog(BaseModel):
     id: int
     timestamp: str
