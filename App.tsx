@@ -262,7 +262,7 @@ function App() {
             <div className="grid grid-cols-3 gap-6 min-h-[400px]">
               <div className="col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col">
                 <h3 className="text-xs font-bold text-slate-400 mb-4">RISK BY ZONE (PREDICTED)</h3>
-                <div className="flex-1 h-[300px] w-full">
+                <div className="flex-1 h-[500px] w-full overflow-y-auto custom-scrollbar">
                   {(!result?.zone_risks || result.zone_risks.length === 0) ? (
                     <div className="flex items-center justify-center h-full text-slate-500 text-xs">
                       No zone risk data available.
@@ -285,7 +285,7 @@ function App() {
                 </div>
               </div>
               <div className="col-span-1 h-full">
-                <AburraMap affectedZones={result?.affected_zones || []} intensity={result?.risk_score || 0} />
+                <AburraMap zoneRisks={result?.zone_risks || []} />
               </div>
             </div>
           </div>

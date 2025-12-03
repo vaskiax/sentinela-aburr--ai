@@ -197,7 +197,7 @@ async def run_training_task():
     
     try:
         if current_config:
-            result = predictor.train_and_predict(current_config, len(scraped_data))
+            result = predictor.train_and_predict(current_config, scraped_data)
             prediction_result = result
             add_log(PipelineStage.TRAINING, "Training complete.")
             current_stage = PipelineStage.DASHBOARD

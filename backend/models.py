@@ -57,17 +57,6 @@ class TrainingMetrics(BaseModel):
     confusion_matrix: List[List[int]]
     dataset_size: int
 
-class PredictionResult(BaseModel):
-    risk_score: float
-    expected_crime_type: str
-    affected_zones: List[str]
-    duration_days: int
-    confidence_interval: Tuple[float, float]
-    feature_importance: List[Dict[str, Any]] # { feature: string; importance: number }
-    timeline_data: List[Dict[str, Any]] # { day: string; risk_score: number }
-    training_metrics: TrainingMetrics
-
-    status: str # 'pending' | 'success' | 'error'
 
 class CleaningStats(BaseModel):
     total_scraped: int
@@ -89,8 +78,11 @@ class PredictionResult(BaseModel):
     duration_days: int
     confidence_interval: Tuple[float, float]
     feature_importance: List[Dict[str, Any]] # { feature: string; importance: number }
+    timeline_data: List[Dict[str, Any]] # { day: string; risk_score: number }
+    zone_risks: List[Dict[str, Any]] # { zone: string; risk: number }
     training_metrics: TrainingMetrics
     model_metadata: Optional[ModelMetadata] = None
+    status: str = 'success'
 
 class ProcessingLog(BaseModel):
     id: int

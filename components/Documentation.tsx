@@ -35,7 +35,7 @@ const Documentation = () => {
           </div>
           <div className="bg-slate-900 p-4 rounded border border-slate-800">
             <h4 className="text-white font-bold text-xs mb-2">Risk Index</h4>
-            <p className="text-xs">A normalized score (0-100) indicating the probability of a violence outbreak. 0-40: Stable, 41-70: High Risk, 71-100: Critical.</p>
+            <p className="text-xs">A normalized score (0-100) indicating the probability of a violence outbreak. 0-30: Stable, 31-70: High Risk, 71-100: Critical.</p>
           </div>
           <div className="bg-slate-900 p-4 rounded border border-slate-800">
             <h4 className="text-white font-bold text-xs mb-2">C01 - C16</h4>
@@ -115,9 +115,9 @@ const Documentation = () => {
         <p>
           <strong>Interpretation:</strong>
           <br />
-          <span className="text-green-500">0-40 (Low):</span> Routine police activity.
+          <span className="text-green-500">0-30 (Low):</span> Routine police activity.
           <br />
-          <span className="text-orange-500">41-70 (Elevated):</span> Significant blows to command structures. Expect realignment.
+          <span className="text-orange-500">31-70 (Elevated):</span> Significant blows to command structures. Expect realignment.
           <br />
           <span className="text-red-500">71-100 (Critical):</span> Power vacuums detected. High probability of retaliatory violence or turf wars.
         </p>

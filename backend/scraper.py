@@ -57,8 +57,29 @@ class Scraper:
         }
         def safe_get(url: str):
             try:
-                return requests.get(url, headers=headers, timeout=10)
-            except Exception:
+                MAX_SIZE = 5 * 1024 * 1024 # 5MB limit
+                resp = requests.get(url, headers=headers, timeout=10, stream=True)
+                
+                # Check Content-Length header if present
+                if 'Content-Length' in resp.headers:
+                    if int(resp.headers['Content-Length']) > MAX_SIZE:
+                        print(f"[Fetch] Skipped {url} - Too large ({resp.headers['Content-Length']} bytes)", file=sys.stderr)
+                        resp.close()
+                        return None
+                
+                # Read content with limit
+                content = b''
+                for chunk in resp.iter_content(chunk_size=1024*1024):
+                    content += chunk
+                    if len(content) > MAX_SIZE:
+                        print(f"[Fetch] Aborted {url} - Exceeded 5MB limit", file=sys.stderr)
+                        resp.close()
+                        return None
+                
+                resp._content = content
+                return resp
+            except Exception as e:
+                # print(f"[Fetch] Error {url}: {e}", file=sys.stderr)
                 return None
         def parse_listing(url: str, selector: str = 'a'):
             resp = safe_get(url)

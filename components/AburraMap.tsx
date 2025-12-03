@@ -3,11 +3,10 @@ import * as d3 from 'd3';
 import { ABURRA_ZONES } from '../constants';
 
 interface AburraMapProps {
-  affectedZones: string[];
-  intensity: number;
+  zoneRisks: { zone: string; risk: number }[];
 }
 
-const AburraMap: React.FC<AburraMapProps> = ({ affectedZones, intensity }) => {
+const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -16,7 +15,7 @@ const AburraMap: React.FC<AburraMapProps> = ({ affectedZones, intensity }) => {
     const width = 400;
     const height = 500;
     const svg = d3.select(svgRef.current);
-    
+
     svg.selectAll("*").remove(); // Clear previous
 
     // Create a stylized grid layout for the map (Abstract representation)
@@ -32,7 +31,7 @@ const AburraMap: React.FC<AburraMapProps> = ({ affectedZones, intensity }) => {
       'C10': [2, 5], // Center
       'C11': [1, 5], 'C12': [0, 5], 'C13': [0, 6],
       'C14': [3, 7], // Poblado
-      'C15': [1, 7], 
+      'C15': [1, 7],
       'C16': [0, 7],
       'ITA': [1, 8], // South
       'ENV': [3, 8], // South
@@ -50,24 +49,33 @@ const AburraMap: React.FC<AburraMapProps> = ({ affectedZones, intensity }) => {
 
     ABURRA_ZONES.forEach((zone) => {
       const coords = zoneCoords[zone.id] || [2, 4]; // Default to center if missing
-      const isAffected = affectedZones.some(az => zone.name.includes(az) || az.includes(zone.name) || zone.id === az);
-      
-      // Determine individual zone risk - Critical or High based on list logic (Mock)
-      // If it's the first in the list, we treat as primary/critical, others as secondary/high
-      const isCritical = isAffected && affectedZones.indexOf(zone.name) < 2; // Arbitrary logic for vis variation
-      
+
+      // Find risk for this zone
+      // Match by ID or Name
+      const riskData = zoneRisks.find(zr =>
+        zr.zone === zone.name || zr.zone === zone.id || zr.zone.includes(zone.name)
+      );
+      const riskScore = riskData ? riskData.risk : 0;
+
+      // Determine color based on risk score
+      let fillColor = "#1e293b"; // Default/Low
+      let strokeColor = "#475569";
+
+      if (riskScore > 70) {
+        fillColor = "#ef4444"; // Critical (Red)
+        strokeColor = "#fca5a5";
+      } else if (riskScore > 30) {
+        fillColor = "#f97316"; // Elevated (Orange)
+        strokeColor = "#fdba74";
+      } else if (riskScore > 10) {
+        fillColor = "#3b82f6"; // Low/Active (Blue)
+        strokeColor = "#93c5fd";
+      }
+
       const g = svg.append("g")
         .attr("transform", `translate(${xScale(coords[0])}, ${yScale(coords[1])})`);
 
       // Hexagon or Circle shape
-      const fillColor = isAffected 
-        ? (isCritical ? "#ef4444" : "#f97316") // Red for Critical, Orange for High
-        : "#1e293b";
-      
-      const strokeColor = isAffected 
-        ? (isCritical ? "#fca5a5" : "#fdba74")
-        : "#475569";
-
       g.append("circle")
         .attr("r", 20)
         .attr("fill", fillColor)
@@ -75,17 +83,17 @@ const AburraMap: React.FC<AburraMapProps> = ({ affectedZones, intensity }) => {
         .attr("stroke-width", 2)
         .transition()
         .duration(1000)
-        .attr("r", isAffected ? 24 : 20);
-        
-      if (isAffected) {
-        // Pulse effect
+        .attr("r", riskScore > 30 ? 24 : 20);
+
+      if (riskScore > 70) {
+        // Pulse effect for critical zones
         const pulse = g.append("circle")
           .attr("r", 20)
           .attr("fill", "none")
           .attr("stroke", fillColor)
           .attr("stroke-width", 1)
           .attr("opacity", 1);
-          
+
         const repeatPulse = () => {
           pulse
             .attr("r", 20)
@@ -97,7 +105,7 @@ const AburraMap: React.FC<AburraMapProps> = ({ affectedZones, intensity }) => {
             .attr("opacity", 0)
             .on("end", repeatPulse);
         };
-        
+
         repeatPulse();
       }
 
@@ -108,9 +116,20 @@ const AburraMap: React.FC<AburraMapProps> = ({ affectedZones, intensity }) => {
         .attr("fill", "white")
         .attr("font-size", "10px")
         .attr("font-weight", "bold");
+
+      // Add tooltip-like text below if high risk
+      if (riskScore > 30) {
+        g.append("text")
+          .text(Math.round(riskScore).toString())
+          .attr("text-anchor", "middle")
+          .attr("dy", 20)
+          .attr("fill", strokeColor)
+          .attr("font-size", "9px")
+          .attr("font-weight", "bold");
+      }
     });
 
-  }, [affectedZones, intensity]);
+  }, [zoneRisks]);
 
   return (
     <div className="flex h-full gap-4">
@@ -119,9 +138,9 @@ const AburraMap: React.FC<AburraMapProps> = ({ affectedZones, intensity }) => {
         <h3 className="text-slate-400 text-sm font-semibold mb-2 uppercase tracking-wider absolute top-4 left-4">Spatial Risk Map</h3>
         <svg ref={svgRef} width={400} height={500} className="overflow-visible" />
         <div className="absolute bottom-4 left-4 flex flex-col gap-2 text-xs text-slate-500 bg-slate-950/80 p-2 rounded border border-slate-800">
-          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-slate-800 border border-slate-600 mr-2"></div> Stable</div>
-          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div> High Risk</div>
-          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div> Critical</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div> Low (10-30)</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div> Elevated (31-70)</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div> Critical (&gt;70)</div>
         </div>
       </div>
 
@@ -132,13 +151,19 @@ const AburraMap: React.FC<AburraMapProps> = ({ affectedZones, intensity }) => {
           <table className="w-full text-[10px] text-slate-400">
             <tbody>
               {ABURRA_ZONES.map(z => {
-                 const isAffected = affectedZones.includes(z.name);
-                 return (
-                  <tr key={z.id} className={`border-b border-slate-800 ${isAffected ? 'text-red-400 font-bold bg-red-900/10' : ''}`}>
+                const riskData = zoneRisks.find(zr => zr.zone === z.name || zr.zone === z.id || zr.zone.includes(z.name));
+                const score = riskData ? riskData.risk : 0;
+                let rowClass = "";
+                if (score > 70) rowClass = "text-red-400 font-bold bg-red-900/10";
+                else if (score > 30) rowClass = "text-orange-400 font-bold bg-orange-900/10";
+
+                return (
+                  <tr key={z.id} className={`border-b border-slate-800 ${rowClass}`}>
                     <td className="py-1 px-1 font-mono">{z.id}</td>
                     <td className="py-1 px-1">{z.name}</td>
+                    <td className="py-1 px-1 text-right">{score > 0 ? Math.round(score) : '-'}</td>
                   </tr>
-                 );
+                );
               })}
             </tbody>
           </table>

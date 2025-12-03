@@ -72,7 +72,7 @@ class NLPProcessor:
             print(f"  - Events ({len(events_list)}): {events}", file=sys.stderr, flush=True)
             print(f"  - Crimes ({len(crimes_list)}): {crimes}", file=sys.stderr, flush=True)
             
-            prompt = f"""You are a search query expert for Colombian crime news. Generate 8-10 precise search queries in Spanish to find:
+            prompt = f"""You are a search query expert for Colombian crime news. Generate up-to 50 precise search queries in Spanish to find:
 - Trigger events: {events} involving {ranks} from organizations: {orgs}, local combos: {combos}
 - Crime trends: {crimes} in Valle de Aburrá
 
@@ -174,14 +174,14 @@ Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle d
             prompt = f"""Extract from this HTML article about Medellín crime news:
 1. Headline (clean text)
 2. Summary (2-3 sentences)
-3. Date (YYYY-MM-DD format, estimate if missing)
+3. Date (YYYY-MM-DD format). Look for <time>, meta tags, or date strings in the text. If absolutely missing, estimate from context or return today's date.
 4. Relevance score 0-1 based on keywords: {keywords}
 5. Type: "CRIME_STAT" if about crime statistics/trends, else "TRIGGER_EVENT"
 
 Return ONLY valid JSON: {{"headline": "...", "snippet": "...", "date": "2024-12-02", "relevance": 0.8, "type": "TRIGGER_EVENT"}}
 
-HTML (first 2000 chars):
-{html[:2000]}"""
+HTML (first 15000 chars):
+{html[:15000]}"""
             print(f"[AI Extract] Calling DeepSeek for {url[:50]}...", file=sys.stderr, flush=True)
             
             response = self.client.chat.completions.create(
