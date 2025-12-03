@@ -66,6 +66,7 @@ export interface PredictionResult {
   confidence_interval: [number, number];
   feature_importance: Array<{ feature: string; importance: number }>;
   timeline_data: Array<{ day: string; risk_score: number }>;
+  zone_risks: Array<{ zone: string; risk: number }>;
   training_metrics: TrainingMetrics;
   model_metadata?: ModelMetadata;
 }
@@ -83,7 +84,7 @@ export interface ProjectFile {
   type: 'file' | 'folder';
   content?: string;
   children?: ProjectFile[];
-  language?: 'python' | 'json' | 'markdown' | 'text' | 'csv' | 'bash';
+  language?: 'python' | 'json' | 'markdown' | 'text' | 'csv' | 'bash' | 'tsx' | 'typescript';
 }
 
 export type PipelineStage = 'IDLE' | 'CONFIGURATION' | 'SCRAPING' | 'DATA_PREVIEW' | 'TRAINING' | 'INFERENCE' | 'DASHBOARD';

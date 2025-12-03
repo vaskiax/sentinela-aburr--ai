@@ -77,9 +77,11 @@ class NLPProcessor:
 - Crime trends: {crimes} in Valle de Aburrá
 
 Use the EXACT organization names, event types, ranks, and crimes provided above.
+Include queries for the entire date range starting from {config.date_range_start} to present.
+Generate a mix of specific queries (Org + Event) and broad queries (Crime + Location + Year).
 Optimize for Colombian news sites (minuto30.com, elcolombiano.com, qhubomedellin.com).
 Return ONLY a JSON array of query strings, no explanation.
-Example: ["Captura cabecilla Clan del Golfo Medellín", "Aumento homicidios Valle de Aburrá 2024"]"""
+Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle de Aburrá 2015-2020", "Aumento extorsión Bello 2024"]"""
 
             print(f"[AI Query Builder] Sending prompt to DeepSeek...", file=sys.stderr, flush=True)
             response = self.client.chat.completions.create(
@@ -104,7 +106,35 @@ Example: ["Captura cabecilla Clan del Golfo Medellín", "Aumento homicidios Vall
                     print(f"    {i}. {q}", file=sys.stderr, flush=True)
                 return queries
             print(f"[AI Query Builder] Failed to parse JSON, using first line", file=sys.stderr, flush=True)
-            return [text.split('\n')[0]]
+            # Post-processing: Ensure year coverage
+            try:
+                import datetime
+                start_year = int(config.date_range_start.split('-')[0])
+                current_year = datetime.datetime.now().year
+                
+                # If range is wide (> 1 year), add specific year queries
+                if current_year - start_year > 1:
+                    print(f"[AI Query Builder] Detected wide date range ({start_year}-{current_year}). Generating comprehensive historical queries.", file=sys.stderr, flush=True)
+                    historical_queries = []
+                    # Generate a query for EVERY year to ensure density
+                    for year in range(start_year, current_year + 1):
+                        # Rotate through orgs/crimes to create diverse queries per year
+                        if year % 2 == 0:
+                            historical_queries.append(f"Crimen organizado Medellín {year}")
+                        else:
+                            historical_queries.append(f"Homicidios Valle de Aburrá {year}")
+                        
+                        # Add a specific org query for older years to dig deeper
+                        if year < 2020:
+                            historical_queries.append(f"Capturas Clan del Golfo Medellín {year}")
+
+                    # PREPEND historical queries to ensure they are executed first
+                    print(f"[AI Query Builder] Prepending {len(historical_queries)} historical queries.", file=sys.stderr, flush=True)
+                    queries = historical_queries + queries
+            except Exception as e:
+                print(f"[AI Query Builder] Date range processing error: {e}", file=sys.stderr, flush=True)
+
+            return queries
         except Exception as e:
             print(f"Query builder error: {e}", file=sys.stderr, flush=True)
             # Better fallback using actual config values
@@ -242,7 +272,7 @@ Return JSON."""
                     },
                     {
                         "role": "user",
-                        "content": f"Find recent news articles about: {search_query}"
+                        "content": f"Find news articles about: {search_query}"
                     }
                 ],
                 "max_tokens": 500,
@@ -287,7 +317,8 @@ Return JSON."""
                     unique_urls.append(u)
             
             print(f"[Perplexity] ✓ Found {len(unique_urls)} unique URLs from diverse sources", file=sys.stderr, flush=True)
-            return unique_urls[:12]
+            print(f"[Perplexity] ✓ Found {len(unique_urls)} unique URLs from diverse sources", file=sys.stderr, flush=True)
+            return unique_urls[:100]
             
         except Exception as e:
             print(f"[Perplexity] ✗ Error: {e}", file=sys.stderr, flush=True)

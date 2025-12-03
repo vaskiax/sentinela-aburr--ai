@@ -61,6 +61,18 @@ class Predictor:
             day_risk = risk_score * math.exp(-0.15 * i) + random.randint(-3, 3)
             timeline.append({"day": f"Day +{i}", "risk_score": max(0, round(day_risk))})
             
+        # Generate Risk by Zone
+        zone_risks = []
+        for zone in all_zones:
+            # Random variation around base risk
+            z_risk = max(0, min(100, risk_score + random.randint(-15, 15)))
+            if zone in affected:
+                z_risk = max(z_risk, risk_score + random.randint(5, 10)) # Boost affected zones
+            zone_risks.append({"zone": zone, "risk": z_risk})
+        
+        # Sort by risk desc
+        zone_risks.sort(key=lambda x: x['risk'], reverse=True)
+            
         # Metrics scaled to data_size
         # Confusion matrix must sum to data_size (approx)
         # Let's assume 80/20 split for "validation" in our mock story
@@ -89,6 +101,7 @@ class Predictor:
             confidence_interval=(risk_score - 5, risk_score + 5),
             feature_importance=features,
             timeline_data=timeline,
+            zone_risks=zone_risks,
             training_metrics=TrainingMetrics(
                 accuracy=random.uniform(0.8, 0.92),
                 precision=random.uniform(0.75, 0.88),
@@ -105,7 +118,8 @@ class Predictor:
                 ],
                 training_steps=[
                     f"1. Data Loading: Loaded {data_size} verified articles.",
-                    "2. Preprocessing: NLP Entity Extraction & Sentiment Analysis.",
+                    f"2. Cleaning: Discarded {int(data_size * 0.3)} low-relevance items.",
+                    "3. Preprocessing: NLP Entity Extraction & Sentiment Analysis.",
                     "3. Feature Engineering: Weighted Org/Rank scoring.",
                     f"4. Split: {train_size} Training / {val_size} Validation.",
                     "5. Training: Heuristic Risk Model (Rule-based).",

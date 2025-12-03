@@ -28,41 +28,41 @@ export const MOCK_LOGS = [
 
 // --- MASTER LISTS FOR CONFIGURATION ---
 export const MASTER_ORGS_MAJOR = [
-  "La Oficina de Envigado", "Clan del Golfo (AGC)", "Los Chatas", "Los Pachelly", 
+  "La Oficina de Envigado", "Clan del Golfo (AGC)", "Los Chatas", "Los Pachelly",
   "La Terraza", "Los Triana", "Los del 12", "Los Mesa", "El Mesa", "Niquía Camacol"
 ];
 
 export const MASTER_COMBOS_EXTENDED = [
-    "Combo/Banda La Silla", "El Hoyo de San Pablo", "La 29", "La Avanzada", "La 38", "Los Terranovas", "El Filo", "Los Chicos Malos", 
-    "La Torre (La 107)", "La Galera", "Carpinelo", "Los Triana", "Barrios Unidos", "El Pomar", "El Hoyo", "Balcones de Jardín", 
-    "Oficina de Trasmayo", "Versalles", "La Terraza", "Los Terribles", "San Blas", "La Salle", "El Combo de Motor", "La Guyana (El combo de la Yegua)", 
-    "El Combo de La Vaca", "Cuatro Esquinas (Combo de Luisito)", "La Viña", "La Marina", "La Batea", "La 43", "La Cruz (La Honda)", 
-    "La Arboleda", "El Cristo", "Palermo", "El Pueblo (Pueblito)", "Los Calvos", "La Oficina de Campo Valdés", "Moravia", "Los Gomelos", 
-    "Plan de la Virgen (Miranda)", "Los del Alto", "Los Mondongueros", "Los Bananeros", "Los Lecheros", "Belalcázar", "Alfonso López", 
-    "Franzea", "El Ventiadero", "La Prefa", "Los Matecañas", "Pico Pico", "El Hueco de La María", "El Hueco de La Candelaria", "La 40", 
-    "La 70", "La Oficina de Córdoba", "Los Edificios", "La 26", "La Paralela", "La Fe", "Florencia", "Pájaro Azul", "La Oficina del Doce", 
-    "El Chispero", "El Polvorín", "Los Machacos", "La Imperial", "Los Ototos", "Los Rieles", "El Baratón", "París (La 402)", "La Conejera", 
-    "La Calle del Silencio", "La Calle del Pecado", "Los Negritos", "Los Tatos", "El Plan (Jardín)", "San Martín de Porres", "Los Chichos", 
-    "Picacho", "Los Ranchos", "La 78", "La Invasión", "El Pino", "Kennedy", "El Bulevar", "La Pradera", "Santander", "La Torre Cruz Roja", 
-    "Los Broster", "Los Buchepájaros", "Cotranal", "Los Cachorros", "La Platanera", "El Acopio", "Los Montunos", "El Morro", "Bello Horizonte", 
-    "Villa Flora", "Curazao", "La Huerta", "Aures", "Villa Sofía (El Diamante)", "La Campiña", "Nuevo México", "La Roja", "La Libertad", 
-    "La Mansión", "Los Conejos", "Los Praga", "Villa Hermosa", "13 de Noviembre", "San Antonio", "La Sierra", "Villatina", "Caicedo", 
-    "La Cañada (Tres Esquinas)", "Las Granjas", "La Bombonera", "La Arenera", "Morro Chispas", "Barrios de Jesús (Los BJ)", "Ocho de Marzo", 
-    "La Milagrosa", "Las Palmas", "Convivir El Raudal (Rojas Pinilla)", "Convivir La Bastilla", "Convivir La Bayadera", "Convivir Niquitao", 
-    "Convivir San Antonio", "Convivir El Hueco", "Convivir Alhambra", "Convivir La Veracruz", "Convivir Juan del Corral", "Convivir El Chagualo", 
-    "Convivir Bolívar (Barbacoas)", "Convivir El Incendio", "Convivir Samaritano", "Convivir San Benito", "Convivir Cisneros", "Convivir Cundinamarca", 
-    "La Iguaná", "Combo de Niza (Los Tobón)", "El Coco", "Barrio Cristóbal", "El Pesebre (Los Pesebreros)", "Peñitas", "La Loma", "San Pedro", 
-    "La Agonía", "Los Paracos del Morro", "Reversadero del Dos", "La Sexta", "Los del Seis (Los del Hoyo)", "La Quiebra (Juan XXIII)", "La Divisa", 
-    "Plan del Che", "Curvitas", "Combo de La Boa (La 115)", "La Luz del Mundo", "Altos de San Juan", "Altos de la Virgen", "La Gabriela", 
-    "Santa Rosa de Lima", "Metropolitano", "Eduardo Santos", "Los Picúas", "El Salado", "Los del Uno", "El Chispero del 20", "Betania", 
-    "Guadarrama", "Plan de Foronda", "Los Pirusos", "La Raya", "El Bolo", "La Baranda", "La Colinita", "Cristo Rey", "La 24", "Alexpin", 
-    "Planeco", "La Pesebrera", "La 68", "San Rafael", "La Licorera", "Zafra (El Tanque)", "Barrio Bolsa", "El Ñeque", "San Bernardo (Las Playas)", 
-    "Las Violetas (Los Violeteros)", "Las Mulas", "Los Joaquinillos", "Aguas Frías", "La Capilla", "Sucre", "Fátima", "El Amarillo", 
-    "Belén Rincón (La Sintética)", "Los Motorratones", "Los Alpinitos (Los Alpes)", "Las Brisas", "Los Chivos", "Los Pájaros (Buenavista)", 
-    "La Perla (Los Chemines)", "Los de La 14", "La Lágrima", "La Mano de Dios (Los Negritos)", "Manzanares", "Nuevo Amanecer", "La Aurora", 
-    "El Llano", "Las Flores", "La Montaña", "Bellavista", "Los Nenos", "Los Chicorios", "Las Bifas", "La Oculta", "Santa Rita", 
-    "Los de Mi Casita", "Naranjitos", "Los Salinas", "Aragón", "Barichara", "Eduardo Escobar", "Cantarrana", "La 13", "Los Halcones", 
-    "Pallavecini", "Desconocido"
+  "Combo/Banda La Silla", "El Hoyo de San Pablo", "La 29", "La Avanzada", "La 38", "Los Terranovas", "El Filo", "Los Chicos Malos",
+  "La Torre (La 107)", "La Galera", "Carpinelo", "Los Triana", "Barrios Unidos", "El Pomar", "El Hoyo", "Balcones de Jardín",
+  "Oficina de Trasmayo", "Versalles", "La Terraza", "Los Terribles", "San Blas", "La Salle", "El Combo de Motor", "La Guyana (El combo de la Yegua)",
+  "El Combo de La Vaca", "Cuatro Esquinas (Combo de Luisito)", "La Viña", "La Marina", "La Batea", "La 43", "La Cruz (La Honda)",
+  "La Arboleda", "El Cristo", "Palermo", "El Pueblo (Pueblito)", "Los Calvos", "La Oficina de Campo Valdés", "Moravia", "Los Gomelos",
+  "Plan de la Virgen (Miranda)", "Los del Alto", "Los Mondongueros", "Los Bananeros", "Los Lecheros", "Belalcázar", "Alfonso López",
+  "Franzea", "El Ventiadero", "La Prefa", "Los Matecañas", "Pico Pico", "El Hueco de La María", "El Hueco de La Candelaria", "La 40",
+  "La 70", "La Oficina de Córdoba", "Los Edificios", "La 26", "La Paralela", "La Fe", "Florencia", "Pájaro Azul", "La Oficina del Doce",
+  "El Chispero", "El Polvorín", "Los Machacos", "La Imperial", "Los Ototos", "Los Rieles", "El Baratón", "París (La 402)", "La Conejera",
+  "La Calle del Silencio", "La Calle del Pecado", "Los Negritos", "Los Tatos", "El Plan (Jardín)", "San Martín de Porres", "Los Chichos",
+  "Picacho", "Los Ranchos", "La 78", "La Invasión", "El Pino", "Kennedy", "El Bulevar", "La Pradera", "Santander", "La Torre Cruz Roja",
+  "Los Broster", "Los Buchepájaros", "Cotranal", "Los Cachorros", "La Platanera", "El Acopio", "Los Montunos", "El Morro", "Bello Horizonte",
+  "Villa Flora", "Curazao", "La Huerta", "Aures", "Villa Sofía (El Diamante)", "La Campiña", "Nuevo México", "La Roja", "La Libertad",
+  "La Mansión", "Los Conejos", "Los Praga", "Villa Hermosa", "13 de Noviembre", "San Antonio", "La Sierra", "Villatina", "Caicedo",
+  "La Cañada (Tres Esquinas)", "Las Granjas", "La Bombonera", "La Arenera", "Morro Chispas", "Barrios de Jesús (Los BJ)", "Ocho de Marzo",
+  "La Milagrosa", "Las Palmas", "Convivir El Raudal (Rojas Pinilla)", "Convivir La Bastilla", "Convivir La Bayadera", "Convivir Niquitao",
+  "Convivir San Antonio", "Convivir El Hueco", "Convivir Alhambra", "Convivir La Veracruz", "Convivir Juan del Corral", "Convivir El Chagualo",
+  "Convivir Bolívar (Barbacoas)", "Convivir El Incendio", "Convivir Samaritano", "Convivir San Benito", "Convivir Cisneros", "Convivir Cundinamarca",
+  "La Iguaná", "Combo de Niza (Los Tobón)", "El Coco", "Barrio Cristóbal", "El Pesebre (Los Pesebreros)", "Peñitas", "La Loma", "San Pedro",
+  "La Agonía", "Los Paracos del Morro", "Reversadero del Dos", "La Sexta", "Los del Seis (Los del Hoyo)", "La Quiebra (Juan XXIII)", "La Divisa",
+  "Plan del Che", "Curvitas", "Combo de La Boa (La 115)", "La Luz del Mundo", "Altos de San Juan", "Altos de la Virgen", "La Gabriela",
+  "Santa Rosa de Lima", "Metropolitano", "Eduardo Santos", "Los Picúas", "El Salado", "Los del Uno", "El Chispero del 20", "Betania",
+  "Guadarrama", "Plan de Foronda", "Los Pirusos", "La Raya", "El Bolo", "La Baranda", "La Colinita", "Cristo Rey", "La 24", "Alexpin",
+  "Planeco", "La Pesebrera", "La 68", "San Rafael", "La Licorera", "Zafra (El Tanque)", "Barrio Bolsa", "El Ñeque", "San Bernardo (Las Playas)",
+  "Las Violetas (Los Violeteros)", "Las Mulas", "Los Joaquinillos", "Aguas Frías", "La Capilla", "Sucre", "Fátima", "El Amarillo",
+  "Belén Rincón (La Sintética)", "Los Motorratones", "Los Alpinitos (Los Alpes)", "Las Brisas", "Los Chivos", "Los Pájaros (Buenavista)",
+  "La Perla (Los Chemines)", "Los de La 14", "La Lágrima", "La Mano de Dios (Los Negritos)", "Manzanares", "Nuevo Amanecer", "La Aurora",
+  "El Llano", "Las Flores", "La Montaña", "Bellavista", "Los Nenos", "Los Chicorios", "Las Bifas", "La Oculta", "Santa Rita",
+  "Los de Mi Casita", "Naranjitos", "Los Salinas", "Aragón", "Barichara", "Eduardo Escobar", "Cantarrana", "La 13", "Los Halcones",
+  "Pallavecini", "Desconocido"
 ];
 
 // PREDICTOR VARIABLES (Triggers - X)
@@ -76,7 +76,7 @@ export const MASTER_PREDICTOR_RANKS = [
 
 // TARGET VARIABLES (To Predict - Y)
 export const MASTER_TARGET_CRIMES = [
-  "Homicidio (Homicide)", "Fleteo (Theft)", "Extorsión (Extortion)", "Microtráfico (Drug Trafficking)", 
+  "Homicidio (Homicide)", "Fleteo (Theft)", "Extorsión (Extortion)", "Microtráfico (Drug Trafficking)",
   "Porte Ilegal de Armas", "Terrorismo", "Desplazamiento Forzado", "Secuestro"
 ];
 
@@ -211,25 +211,19 @@ from google import genai
 
 export const PROJECT_STRUCTURE: ProjectFile[] = [
   {
-    name: 'sentinela-aburra',
+    name: 'sentinela-aburra-ai',
     type: 'folder',
     children: [
       {
-        name: 'config',
+        name: 'backend',
         type: 'folder',
         children: [
-          { name: 'scraping_config.json', type: 'file', content: '{\n  "predictors": {"events": ["Capture"], "ranks": ["Cabecilla"]},\n  "targets": ["Homicidio"]\n}', language: 'json' }
-        ]
-      },
-      { name: '.env', type: 'file', content: SCRIPT_ENV_SETUP, language: 'bash' },
-      {
-        name: 'data',
-        type: 'folder',
-        children: [
-          { name: 'raw', type: 'folder', children: [
-              {name: 'predictors_x.jsonl', type: 'file', content: "{...}"},
-              {name: 'targets_y.jsonl', type: 'file', content: "{...}"}
-          ]},
+          { name: 'main.py', type: 'file', content: '# FastAPI Entry Point', language: 'python' },
+          { name: 'models.py', type: 'file', content: '# Pydantic Models', language: 'python' },
+          { name: 'nlp.py', type: 'file', content: '# Gemini 2.5 Flash Integration', language: 'python' },
+          { name: 'predictor.py', type: 'file', content: '# XGBoost/Heuristic Engine', language: 'python' },
+          { name: 'scraper.py', type: 'file', content: '# Intelligent Scraper', language: 'python' },
+          { name: 'requirements.txt', type: 'file', content: 'fastapi\nuvicorn\n...', language: 'text' }
         ]
       },
       {
@@ -237,21 +231,25 @@ export const PROJECT_STRUCTURE: ProjectFile[] = [
         type: 'folder',
         children: [
           {
-            name: 'spiders',
+            name: 'components',
             type: 'folder',
             children: [
-              { name: 'medellin_predictive_spider.py', type: 'file', content: SCRIPT_SCRAPER_MAIN, language: 'python' }
+              { name: 'Dashboard.tsx', type: 'file', content: '// Main Dashboard UI', language: 'tsx' },
+              { name: 'DataPreview.tsx', type: 'file', content: '// Data Grid & Filters', language: 'tsx' },
+              { name: 'Documentation.tsx', type: 'file', content: '// System Docs', language: 'tsx' },
+              { name: 'PipelineConfig.tsx', type: 'file', content: '// Configuration Form', language: 'tsx' },
+              { name: 'TrainingInsights.tsx', type: 'file', content: '// Model Visibility', language: 'tsx' },
+              { name: 'CleaningReport.tsx', type: 'file', content: '// Data Cleaning Stats', language: 'tsx' }
             ]
           },
-          {
-            name: 'models',
-            type: 'folder',
-            children: [
-              { name: 'train_model.py', type: 'file', content: SCRIPT_MODEL_TRAIN, language: 'python' }
-            ]
-          }
+          { name: 'App.tsx', type: 'file', content: '// App Entry & Routing', language: 'tsx' },
+          { name: 'types.ts', type: 'file', content: '// TypeScript Interfaces', language: 'typescript' },
+          { name: 'constants.ts', type: 'file', content: '// Config & Mocks', language: 'typescript' }
         ]
-      }
+      },
+      { name: 'README.md', type: 'file', content: '# Project Documentation', language: 'markdown' },
+      { name: 'package.json', type: 'file', content: '{ "name": "sentinela-ai" ... }', language: 'json' },
+      { name: 'vite.config.ts', type: 'file', content: 'import { defineConfig } ...', language: 'typescript' }
     ]
   }
 ];

@@ -66,7 +66,7 @@ class Scraper:
                 return []
             soup = BeautifulSoup(resp.text, "html.parser")
             links = []
-            for a in soup.select(f"{selector}[href]")[:30]:
+            for a in soup.select(f"{selector}[href]"):
                 href = a.get("href")
                 title = a.get_text(strip=True)
                 if not href:
@@ -111,7 +111,7 @@ class Scraper:
         # Use Perplexity web search to get article URLs
         print("[Strategy] Using Perplexity API for open web search", file=sys.stderr, flush=True)
         
-        for query in search_queries[:8]:
+        for query in search_queries:
             print(f"[Perplexity Search] Query: {query[:60]}...", file=sys.stderr, flush=True)
             urls = nlp.web_search(query, site_filter=None)  # No site restrictions
             print(f"[Perplexity Search] Found {len(urls)} URLs", file=sys.stderr, flush=True)
@@ -131,13 +131,12 @@ class Scraper:
                             **extracted
                         })
                         print(f"[Extract] ✓ Added (relevance {relevance:.2f})", file=sys.stderr, flush=True)
-                        if len(collected) >= 25:
+                        if len(collected) >= 500:
                             break
                 else:
                     print(f"[Fetch] ✗ Failed to fetch {article_url}", file=sys.stderr, flush=True)
             
-            if len(collected) >= 25:
-                break
+            if len(collected) >= 500:
                 break
 
         # Fallback: if nothing matched, fetch from landing pages and use AI extraction
@@ -156,7 +155,7 @@ class Scraper:
                 
                 articles_checked = 0
                 for full, title in links:
-                    if articles_checked >= 10:  # limit per source
+                    if articles_checked >= 100:  # Increased limit per source
                         break
                     articles_checked += 1
                     
@@ -174,19 +173,19 @@ class Scraper:
                                 **extracted
                             })
                             print(f"[Article {articles_checked}] ✓ Added (relevance {relevance:.2f})", file=sys.stderr, flush=True)
-                            if len(collected) >= 20:
+                            if len(collected) >= 500:
                                 break
                     else:
                         print(f"[Article {articles_checked}] ✗ Failed to fetch", file=sys.stderr, flush=True)
                 
-                if len(collected) >= 20:
+                if len(collected) >= 500:
                     break
 
         # Sort by AI relevance score and date
         collected.sort(key=lambda x: (x.get('relevance', 0), x.get('date', '')), reverse=True)
 
         print(f"[AI Scraper] Collected {len(collected)} articles")
-        for i, it in enumerate(collected[:30]):
+        for i, it in enumerate(collected):
             items.append(ScrapedItem(
                 id=f"ai_{i}",
                 source=it.get('source', 'unknown'),

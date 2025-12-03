@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldAlert, Layout, Code, Play, RefreshCw, ChevronRight, Activity, Target, BookOpen } from 'lucide-react';
+import { ShieldAlert, Layout, Code, Play, RefreshCw, ChevronRight, Activity, Target, BookOpen, Database } from 'lucide-react';
 import PipelineStatus from './components/PipelineStatus';
 import ProjectArchitecture from './components/ProjectArchitecture';
 import PipelineConfig from './components/PipelineConfig';
@@ -9,7 +9,7 @@ import AburraMap from './components/AburraMap';
 import ModelMetrics from './components/ModelMetrics';
 import CleaningReport from './components/CleaningReport';
 import TrainingInsights from './components/TrainingInsights';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar } from 'recharts';
 import { PredictionResult, ProcessingLog, ScrapingConfig, PipelineStage, ScrapedItem, CleaningStats } from './types';
 import { MOCK_LOGS, PROJECT_STRUCTURE, MASTER_PREDICTOR_EVENTS, MASTER_PREDICTOR_RANKS, MASTER_TARGET_CRIMES } from './constants';
 import { api } from './services/api';
@@ -122,6 +122,56 @@ function App() {
     await api.startTraining();
   };
 
+  const downloadReport = () => {
+    console.log("Attempting download...");
+    if (!result) {
+      alert("No results to export yet.");
+      return;
+    }
+
+    try {
+      // 1. Prediction Summary CSV
+      const summaryData = [
+        ['Metric', 'Value'],
+        ['Risk Score', result.risk_score],
+        ['Risk Level', result.risk_score > 70 ? 'CRITICAL' : 'ELEVATED'],
+        ['Predicted Crime', result.expected_crime_type],
+        ['Forecast Duration', `${result.duration_days} days`],
+        ['Affected Zones', result.affected_zones.join('; ')]
+      ];
+
+      // 2. Zone Risks CSV
+      const zoneData = [['Zone', 'Risk Score']];
+      (result.zone_risks || []).forEach(z => zoneData.push([z.zone, z.risk.toString()]));
+
+      // 3. Scraped Data CSV
+      const evidenceData = [['Date', 'Headline', 'Source', 'Relevance']];
+      scrapedData.forEach(item => evidenceData.push([item.date, item.headline, item.source, item.relevance_score.toString()]));
+
+      // Helper to create blob
+      const createCSV = (rows: (string | number)[][]) => rows.map(r => r.join(',')).join('\n');
+
+      const csvContent = "--- SUMMARY ---\n" + createCSV(summaryData) +
+        "\n\n--- ZONE RISKS ---\n" + createCSV(zoneData) +
+        "\n\n--- EVIDENCE LOG ---\n" + createCSV(evidenceData);
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Sentinela_Report_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a); // Append to body to ensure click works
+      a.click();
+      document.body.removeChild(a); // Cleanup
+      window.URL.revokeObjectURL(url);
+      console.log("Download triggered.");
+    } catch (e) {
+      console.error("Export failed:", e);
+      alert("Export failed. Check console.");
+    }
+  };
+
   const renderContent = () => {
     if (viewMode === 'ARCHITECTURE') {
       return <ProjectArchitecture files={PROJECT_STRUCTURE} />;
@@ -167,6 +217,9 @@ function App() {
                 <h2 className="text-lg font-bold text-white">Operational Dashboard</h2>
                 <p className="text-xs text-slate-400">Real-time risk assessment based on historical & current intelligence.</p>
               </div>
+              <button onClick={downloadReport} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-green-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2">
+                <Database size={14} /> EXPORT DATA
+              </button>
               <button onClick={handleStartNewAnalysis} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2">
                 <RefreshCw size={14} /> NEW ANALYSIS RUN
               </button>
@@ -208,23 +261,27 @@ function App() {
             {/* Bottom Section: Charts & Map */}
             <div className="grid grid-cols-3 gap-6 min-h-[400px]">
               <div className="col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col">
-                <h3 className="text-xs font-bold text-slate-400 mb-4">RISK PROJECTION CURVE</h3>
-                <div className="flex-1 min-h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={result?.timeline_data}>
-                      <defs>
-                        <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                      <XAxis dataKey="day" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
-                      <Area type="monotone" dataKey="risk_score" stroke="#ef4444" fill="url(#colorRisk)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                <h3 className="text-xs font-bold text-slate-400 mb-4">RISK BY ZONE (PREDICTED)</h3>
+                <div className="flex-1 h-[300px] w-full">
+                  {(!result?.zone_risks || result.zone_risks.length === 0) ? (
+                    <div className="flex items-center justify-center h-full text-slate-500 text-xs">
+                      No zone risk data available.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={result.zone_risks} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                        <XAxis dataKey="zone" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-45} textAnchor="end" height={60} />
+                        <YAxis stroke="#64748b" fontSize={10} domain={[0, 100]} tickLine={false} axisLine={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }}
+                          itemStyle={{ color: '#e2e8f0' }}
+                          cursor={{ fill: '#1e293b', opacity: 0.4 }}
+                        />
+                        <Bar dataKey="risk" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
               <div className="col-span-1 h-full">

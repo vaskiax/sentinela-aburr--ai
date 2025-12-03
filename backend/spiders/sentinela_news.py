@@ -14,7 +14,7 @@ class NewsSpider(Spider):
         'CONCURRENT_REQUESTS': 8,
     }
 
-    def __init__(self, config_keywords: List[str] | None = None, max_items_per_source: int = 30, **kwargs):
+    def __init__(self, config_keywords: List[str] | None = None, max_items_per_source: int = 500, **kwargs):
         super().__init__(**kwargs)
         self.config_keywords = [k.lower() for k in (config_keywords or []) if k]
         self.max_items_per_source = max_items_per_source
