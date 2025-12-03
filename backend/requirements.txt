@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pandas
+requests
+beautifulsoup4
+scrapy
+google-generativeai
+scikit-learn
+xgboost
+python-multipart
+python-dotenv

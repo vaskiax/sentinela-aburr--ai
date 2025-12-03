@@ -1,0 +1,5 @@
+@echo off
+echo Starting Sentinela Aburrá Backend...
+cd /d "%~dp0"
+call venv\Scripts\activate.bat
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
