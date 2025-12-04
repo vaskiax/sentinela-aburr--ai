@@ -45,9 +45,10 @@ class NLPProcessor:
         if not self.client:
             # Fallback: simple combinations
             queries = []
-            for org in (config.target_organizations or [])[:3]:
+            all_groups = (config.target_organizations or []) + (config.local_combos or [])
+            for group in all_groups[:5]:
                 for event in (config.predictor_events or [])[:2]:
-                    queries.append(f'"{org}" "{event}" Medellín')
+                    queries.append(f'"{group}" "{event}" Medellín')
             for crime in (config.target_crimes or [])[:2]:
                 queries.append(f'"{crime}" Valle de Aburrá')
             print(f"[AI Query Builder] Generated {len(queries)} fallback queries: {queries}", file=sys.stderr, flush=True)
@@ -69,6 +70,7 @@ class NLPProcessor:
             
             print(f"[AI Query Builder] Building prompt with:", file=sys.stderr, flush=True)
             print(f"  - Orgs ({len(orgs_list)}): {orgs[:100]}", file=sys.stderr, flush=True)
+            print(f"  - Combos ({len(combos_list)}): {combos[:100]}", file=sys.stderr, flush=True)
             print(f"  - Events ({len(events_list)}): {events}", file=sys.stderr, flush=True)
             print(f"  - Crimes ({len(crimes_list)}): {crimes}", file=sys.stderr, flush=True)
             
@@ -139,9 +141,11 @@ Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle d
             print(f"Query builder error: {e}", file=sys.stderr, flush=True)
             # Better fallback using actual config values
             fallback_queries = []
-            for org in (config.target_organizations or [])[:3]:
+            # Combine orgs and local combos for fallback
+            all_groups = (config.target_organizations or []) + (config.local_combos or [])
+            for group in all_groups[:5]:
                 for event in (config.predictor_events or ['captura'])[:2]:
-                    fallback_queries.append(f'{event} {org} Medellín')
+                    fallback_queries.append(f'{event} {group} Medellín')
             print(f"[AI Query Builder] Exception fallback: {fallback_queries}", file=sys.stderr, flush=True)
             return fallback_queries if fallback_queries else ['captura Medellín']
 
@@ -171,16 +175,23 @@ Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle d
                 (config.target_crimes or [])
             )
             
-            prompt = f"""Extract from this HTML article about Medellín crime news:
-1. Headline (clean text)
-2. Summary (2-3 sentences)
-3. Date (YYYY-MM-DD format). Look for <time>, meta tags, or date strings in the text. If absolutely missing, estimate from context or return today's date.
-4. Relevance score 0-1 based on keywords: {keywords}
-5. Type: "CRIME_STAT" if about crime statistics/trends, else "TRIGGER_EVENT"
+            prompt = f"""You are an expert intelligence analyst specializing in Colombian crime news. Extract structured data from the provided HTML article. Your output MUST be a single, valid JSON object and nothing else.
 
-Return ONLY valid JSON: {{"headline": "...", "snippet": "...", "date": "2024-12-02", "relevance": 0.8, "type": "TRIGGER_EVENT"}}
+**Extraction Schema:**
 
-HTML (first 15000 chars):
+1.  **headline**: The main, clean headline of the article.
+2.  **snippet**: A concise 2-3 sentence summary of the article's key information.
+3.  **date**: The publication date in strict "YYYY-MM-DD" format. Prioritize metadata tags like `<time datetime="...">` or `article:published_time`. If no metadata is found, parse it from the text. As a last resort, use today's date.
+4.  **relevance**: A relevance score from 0.0 to 1.0. This score must reflect how closely the article matches the following high-value keywords: **{keywords}**. A high score (0.7-1.0) should be reserved for articles detailing direct actions against these specific groups or crimes. A low score (< 0.2) should be for unrelated news.
+5.  **type**: Classify the article's primary focus. This is critical.
+    *   Use **"TRIGGER_EVENT"** ONLY if the main topic is a direct action by authorities (e.g., a capture, an operation, a raid, a neutralization, a dismantling of a criminal group).
+    *   Use **"CRIME_STAT"** if the article is a report on crime trends, statistics, analysis, or describes a crime that has already occurred without a direct and immediate operational response as the main subject.
+6.  **extracted_metadata**: A nested JSON object containing extracted entities.
+    *   **crime_type**: The specific crime mentioned (e.g., Homicide, Extortion, Drug Trafficking, Kidnapping). If multiple, list the primary one. Default to "Unknown" if none are clearly stated.
+    *   **organization**: The specific criminal organization mentioned (e.g., Clan del Golfo, La Oficina, Los Chatas). Default to "Unknown".
+    *   **locations**: A JSON array of strings listing all neighborhoods (comunas, barrios) or municipalities mentioned.
+
+**HTML Content (first 15,000 chars):**
 {html[:15000]}"""
             print(f"[AI Extract] Calling DeepSeek for {url[:50]}...", file=sys.stderr, flush=True)
             

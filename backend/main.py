@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from typing import List, Optional
 import asyncio
 import random
 import os
+import pandas as pd
 from dotenv import load_dotenv
 from .models import (
     ScrapingConfig, ScrapedItem, PredictionResult, ProcessingLog, PipelineStage, CleaningStats
@@ -104,7 +106,6 @@ async def run_scraping_task():
     add_log(PipelineStage.SCRAPING, "Starting scraping process...")
     
     print("[SCRAPING TASK] Task started", file=sys.stderr, flush=True)
-    await asyncio.sleep(1) # Simulate init
     
     try:
         if current_config:
@@ -155,13 +156,14 @@ async def start_scraping(background_tasks: BackgroundTasks):
 @app.post("/api/reset")
 async def reset_pipeline():
     """Reset the entire pipeline state"""
-    global current_stage, scraped_data, prediction_result, logs, current_config
+    global current_stage, scraped_data, prediction_result, logs, current_config, scrape_stats
     print("[RESET] Resetting all pipeline state")
     current_stage = PipelineStage.DASHBOARD
     scraped_data = []
     prediction_result = None
     logs = []
     current_config = None
+    scrape_stats = None
     return {"status": "reset"}
 
 @app.get("/api/debug/config")
@@ -179,6 +181,7 @@ async def debug_config():
 
 @app.get("/api/status")
 async def get_status():
+    print(f"[STATUS] Current stage: {current_stage}, Has result: {prediction_result is not None}", flush=True)
     return {
         "stage": current_stage,
         "logs": logs
@@ -189,26 +192,46 @@ async def get_data():
     return scraped_data
 
 async def run_training_task():
-    global current_stage, prediction_result
+    global current_stage, prediction_result, current_config
     current_stage = PipelineStage.TRAINING
     add_log(PipelineStage.TRAINING, "Starting model training...")
-    
-    await asyncio.sleep(2) # Simulate training
+    print("[TRAINING] Task started", flush=True)
     
     try:
-        if current_config:
-            result = predictor.train_and_predict(current_config, scraped_data)
-            prediction_result = result
-            add_log(PipelineStage.TRAINING, "Training complete.")
-            current_stage = PipelineStage.DASHBOARD
-            add_log(PipelineStage.DASHBOARD, "Dashboard updated.")
+        # If no config exists (e.g., from CSV upload), create a default one
+        if not current_config:
+            print("[TRAINING] No config found, creating default config", flush=True)
+            current_config = ScrapingConfig(
+                target_organizations=[],
+                local_combos=[],
+                date_range_start="2023-01-01",
+                predictor_events=[],
+                predictor_ranks=[],
+                target_crimes=[],
+                forecast_horizon=7
+            )
+        
+        print(f"[TRAINING] Calling predictor.train_and_predict with {len(scraped_data)} items...", flush=True)
+        result = predictor.train_and_predict(current_config, scraped_data)
+        print(f"[TRAINING] Training completed. Result: {result is not None}", flush=True)
+        prediction_result = result
+        add_log(PipelineStage.TRAINING, "Training complete. Model saved.")
+        # IMPORTANT: Stay in TRAINING stage so user can review results
+        # User must manually click "Proceed to Inference" button
+        print(f"[TRAINING] Staying in TRAINING stage for user review", flush=True)
+        add_log(PipelineStage.TRAINING, "Review training results and click 'Proceed' when ready.")
     except Exception as e:
+        print(f"[TRAINING] ERROR: {str(e)}", flush=True)
+        import traceback
+        traceback.print_exc()
         add_log(PipelineStage.TRAINING, f"Error: {str(e)}", "error")
         current_stage = PipelineStage.IDLE
 
 @app.post("/api/train")
-async def start_training(background_tasks: BackgroundTasks):
-    background_tasks.add_task(run_training_task)
+async def start_training():
+    print("[API] /api/train called", flush=True)
+    # Run training synchronously (it's fast enough)
+    await run_training_task()
     return {"status": "started"}
 
 @app.get("/api/result")
@@ -232,3 +255,79 @@ async def nlp_status():
 @app.get("/api/scrape-stats")
 async def get_scrape_stats():
     return scrape_stats
+
+# --- New MLOps Endpoints ---
+
+@app.post("/api/upload/data")
+async def upload_data(file: UploadFile = File(...)):
+    global scraped_data, current_stage, scrape_stats
+    
+    try:
+        df = pd.read_csv(file.file)
+        # Validar columnas necesarias (Flexible check)
+        # We expect at least Date, Type, Headline/Text
+        required_cols = ['Date', 'Type', 'Headline']
+        if not all(col in df.columns for col in required_cols):
+             raise HTTPException(status_code=400, detail=f"CSV must contain columns: {required_cols}")
+
+        # Convertir DataFrame a lista de ScrapedItem
+        items = []
+        for i, row in df.iterrows():
+            items.append(ScrapedItem(
+                id=f"upload_{i}",
+                date=str(row['Date']),
+                source=row.get('Source', 'Upload'),
+                type=row['Type'],
+                headline=row['Headline'],
+                snippet=row.get('Snippet', ''),
+                relevance_score=float(row.get('Relevance Score', 1.0)),
+                url=row.get('URL', f"upload://row_{i}")
+            ))
+        
+        scraped_data = items
+        # Crear estadísticas de limpieza simuladas
+        scrape_stats = CleaningStats(
+            total_scraped=len(items),
+            filtered_relevance=0,
+            filtered_date=0,
+            duplicates_removed=0,
+            final_count=len(items)
+        )
+        
+        current_stage = PipelineStage.DATA_PREVIEW
+        add_log(PipelineStage.CONFIGURATION, f"Successfully uploaded and parsed {len(items)} records.")
+        add_log(PipelineStage.DATA_PREVIEW, "Data ready for preview.")
+        
+        return {"status": "success", "item_count": len(items)}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+
+@app.post("/api/predict")
+async def run_prediction(items: List[ScrapedItem]):
+    if not current_config:
+        # If no config, create a dummy one with default horizon
+        dummy_config = ScrapingConfig(
+            target_organizations=[], local_combos=[], date_range_start="", 
+            predictor_events=[], predictor_ranks=[], target_crimes=[], forecast_horizon=7
+        )
+        try:
+            result = predictor.predict_on_demand(items, dummy_config)
+            return result
+        except FileNotFoundError:
+             raise HTTPException(status_code=404, detail="Model not found. Please train first.")
+    
+    try:
+        result = predictor.predict_on_demand(items, current_config)
+        return result
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Model not found. Please train first.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/download/model")
+async def download_model():
+    model_path = predictor.model_path
+    if not os.path.exists(model_path):
+        raise HTTPException(status_code=404, detail="Model file not found.")
+    return FileResponse(path=model_path, filename="sentinela_model.joblib", media_type='application/octet-stream')

@@ -39,8 +39,9 @@ export interface TrainingMetrics {
   precision: number;
   recall: number;
   f1_score: number;
-  confusion_matrix: [[number, number], [number, number]]; // [TP, FP], [FN, TN]
+  confusion_matrix: number[][];
   dataset_size: number;
+  test_set_size?: number;
 }
 
 export interface CleaningStats {
@@ -56,6 +57,8 @@ export interface ModelMetadata {
   targets: string[];
   training_steps: string[];
   model_type: string;
+  data_period_start?: string;
+  data_period_end?: string;
 }
 
 export interface PredictionResult {
@@ -68,6 +71,7 @@ export interface PredictionResult {
   timeline_data: Array<{ day: string; risk_score: number }>;
   zone_risks: Array<{ zone: string; risk: number }>;
   training_metrics: TrainingMetrics;
+  model_comparison?: Array<{ model: string; rmse: number }>;
   model_metadata?: ModelMetadata;
 }
 
@@ -101,6 +105,10 @@ export interface ScrapingConfig {
 
   // Predicted Variables (Y) - The Output Targets
   target_crimes: string[];    // e.g., ['Homicide', 'Extortion']
+
+  // Model Configuration
+  forecast_horizon?: number;
+  granularity?: 'D' | 'W' | 'M';
 }
 
 export interface ScrapedItem {

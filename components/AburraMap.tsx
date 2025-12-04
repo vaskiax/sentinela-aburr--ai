@@ -8,6 +8,7 @@ interface AburraMapProps {
 
 const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const ALL_ZONES = [...ABURRA_ZONES, { id: 'SAB', name: 'Sabaneta' }, { id: 'EST', name: 'La Estrella' }];
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -35,6 +36,8 @@ const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
       'C16': [0, 7],
       'ITA': [1, 8], // South
       'ENV': [3, 8], // South
+      'SAB': [2, 8.5], // Sabaneta (South-Center)
+      'EST': [1, 9], // La Estrella (Deep South)
     };
 
     // Draw Connections (The river/valley flow)
@@ -42,12 +45,12 @@ const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
       .attr("x1", xScale(2))
       .attr("y1", yScale(0))
       .attr("x2", xScale(2))
-      .attr("y2", yScale(9))
+      .attr("y2", yScale(9.5))
       .attr("stroke", "#334155")
       .attr("stroke-width", 20)
       .attr("stroke-linecap", "round");
 
-    ABURRA_ZONES.forEach((zone) => {
+    ALL_ZONES.forEach((zone) => {
       const coords = zoneCoords[zone.id] || [2, 4]; // Default to center if missing
 
       // Find risk for this zone
@@ -150,7 +153,7 @@ const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
         <div className="overflow-y-auto flex-1 p-2 custom-scrollbar">
           <table className="w-full text-[10px] text-slate-400">
             <tbody>
-              {ABURRA_ZONES.map(z => {
+              {ALL_ZONES.map(z => {
                 const riskData = zoneRisks.find(zr => zr.zone === z.name || zr.zone === z.id || zr.zone.includes(z.name));
                 const score = riskData ? riskData.risk : 0;
                 let rowClass = "";

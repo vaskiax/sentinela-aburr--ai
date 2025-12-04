@@ -38,6 +38,8 @@ class ScrapingConfig(BaseModel):
     predictor_events: List[str]
     predictor_ranks: List[str]
     target_crimes: List[str]
+    forecast_horizon: int = 7 # Default to 7 days
+    granularity: str = 'W' # 'D' (Daily), 'W' (Weekly), 'M' (Monthly)
 
 class ScrapedItem(BaseModel):
     id: str
@@ -47,7 +49,8 @@ class ScrapedItem(BaseModel):
     snippet: str
     url: str
     relevance_score: float
-    type: str  # 'TRIGGER_EVENT' | 'CRIME_STAT'
+    type: str = "TRIGGER_EVENT"
+    extracted_metadata: Optional[Dict[str, Any]] = None # Structured data: { "crime": "...", "org": "...", "locations": [...] }
 
 class TrainingMetrics(BaseModel):
     accuracy: float
@@ -56,7 +59,7 @@ class TrainingMetrics(BaseModel):
     f1_score: float
     confusion_matrix: List[List[int]]
     dataset_size: int
-
+    test_set_size: int = 0
 
 class CleaningStats(BaseModel):
     total_scraped: int
@@ -70,6 +73,8 @@ class ModelMetadata(BaseModel):
     targets: List[str]
     training_steps: List[str]
     model_type: str
+    data_period_start: Optional[str] = None
+    data_period_end: Optional[str] = None
 
 class PredictionResult(BaseModel):
     risk_score: float
@@ -81,8 +86,17 @@ class PredictionResult(BaseModel):
     timeline_data: List[Dict[str, Any]] # { day: string; risk_score: number }
     zone_risks: List[Dict[str, Any]] # { zone: string; risk: number }
     training_metrics: TrainingMetrics
+    model_comparison: Optional[List[Dict[str, Any]]] = None # [{ model: "RF", f1: 0.8, acc: 0.85 }, ...]
     model_metadata: Optional[ModelMetadata] = None
     status: str = 'success'
+    # DataFrame samples for visualization (10 rows)
+    training_data_sample: Optional[List[Dict[str, Any]]] = None
+    test_data_sample: Optional[List[Dict[str, Any]]] = None
+    inference_data_sample: Optional[List[Dict[str, Any]]] = None
+    # Complete DataFrames for download
+    training_data_full: Optional[List[Dict[str, Any]]] = None
+    test_data_full: Optional[List[Dict[str, Any]]] = None
+    inference_data_full: Optional[List[Dict[str, Any]]] = None
 
 class ProcessingLog(BaseModel):
     id: int

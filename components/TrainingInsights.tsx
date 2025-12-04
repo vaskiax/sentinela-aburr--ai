@@ -1,12 +1,13 @@
 import React from 'react';
 import { Brain, Target, ArrowRight, List, Activity } from 'lucide-react';
-import { ModelMetadata } from '../types';
+import { ModelMetadata, TrainingMetrics } from '../types';
 
 interface TrainingInsightsProps {
     metadata?: ModelMetadata;
+    metrics?: TrainingMetrics;
 }
 
-const TrainingInsights: React.FC<TrainingInsightsProps> = ({ metadata }) => {
+const TrainingInsights: React.FC<TrainingInsightsProps> = ({ metadata, metrics }) => {
     if (!metadata) return null;
 
     return (
@@ -16,7 +17,7 @@ const TrainingInsights: React.FC<TrainingInsightsProps> = ({ metadata }) => {
                 <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <Activity size={14} /> Predictor Variables (X)
                 </h3>
-                <ul className="space-y-2 flex-1">
+                <ul className="space-y-2 mb-3">
                     {metadata.regressors.map((item, idx) => (
                         <li key={idx} className="text-xs text-slate-300 bg-slate-950 p-2 rounded border border-slate-800 flex items-start gap-2">
                             <span className="text-blue-500 font-mono">{idx + 1}.</span>
@@ -24,6 +25,12 @@ const TrainingInsights: React.FC<TrainingInsightsProps> = ({ metadata }) => {
                         </li>
                     ))}
                 </ul>
+                <div className="mt-auto pt-3 border-t border-slate-800">
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                        <strong className="text-slate-400">Cómo se calculan:</strong> Estas variables se generan usando <strong>ventanas deslizantes</strong> de {metadata.forecast_horizon || 7} días.
+                        Se suman todos los eventos trigger y sus puntajes de relevancia en los últimos {metadata.forecast_horizon || 7} días para cada punto temporal.
+                    </p>
+                </div>
             </div>
 
             {/* Targets (Y) */}
@@ -31,7 +38,7 @@ const TrainingInsights: React.FC<TrainingInsightsProps> = ({ metadata }) => {
                 <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <Target size={14} /> Target Variables (Y)
                 </h3>
-                <ul className="space-y-2 flex-1">
+                <ul className="space-y-2 mb-3">
                     {metadata.targets.map((item, idx) => (
                         <li key={idx} className="text-xs text-slate-300 bg-slate-950 p-2 rounded border border-slate-800 flex items-start gap-2">
                             <span className="text-red-500 font-mono">{idx + 1}.</span>
@@ -39,6 +46,12 @@ const TrainingInsights: React.FC<TrainingInsightsProps> = ({ metadata }) => {
                         </li>
                     ))}
                 </ul>
+                <div className="mt-auto pt-3 border-t border-slate-800">
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                        <strong className="text-slate-400">Qué predice:</strong> El volumen de reportes criminales que ocurrirán en los <strong>próximos {metadata.forecast_horizon || 7} días</strong>,
+                        basándose en la actividad de eventos trigger en el período anterior. Esto permite anticipar picos de criminalidad.
+                    </p>
+                </div>
             </div>
 
             {/* Training Steps */}
@@ -46,7 +59,7 @@ const TrainingInsights: React.FC<TrainingInsightsProps> = ({ metadata }) => {
                 <h3 className="text-xs font-bold text-green-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <Brain size={14} /> Training Process
                 </h3>
-                <div className="flex-1 overflow-y-auto max-h-[200px] custom-scrollbar">
+                <div className="flex-1 overflow-y-auto max-h-[150px] custom-scrollbar mb-3">
                     <ul className="space-y-2">
                         {metadata.training_steps.map((step, idx) => (
                             <li key={idx} className="text-[10px] text-slate-400 font-mono border-l-2 border-slate-700 pl-2 py-1">
@@ -55,6 +68,27 @@ const TrainingInsights: React.FC<TrainingInsightsProps> = ({ metadata }) => {
                         ))}
                     </ul>
                 </div>
+
+                {/* Data Composition Stats */}
+                <div className="bg-slate-950 p-3 rounded border border-slate-800">
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">Data Period</span>
+                        <span className="text-[10px] text-blue-300 font-mono">
+                            {metadata.data_period_start} <ArrowRight size={10} className="inline mx-1" /> {metadata.data_period_end}
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-slate-900 p-2 rounded text-center">
+                            <div className="text-[10px] text-slate-500">Training Set (80%)</div>
+                            <div className="text-sm font-bold text-white">{metrics?.dataset_size || '-'}</div>
+                        </div>
+                        <div className="bg-slate-900 p-2 rounded text-center">
+                            <div className="text-[10px] text-slate-500">Test Set (20%)</div>
+                            <div className="text-sm font-bold text-white">{metrics?.test_set_size || '-'}</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="mt-3 pt-3 border-t border-slate-800">
                     <div className="text-[10px] text-slate-500 uppercase">Model Architecture</div>
                     <div className="text-xs font-bold text-white">{metadata.model_type}</div>

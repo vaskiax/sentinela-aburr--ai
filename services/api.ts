@@ -61,5 +61,28 @@ export const api = {
             method: 'POST',
         });
         if (!response.ok) throw new Error('Failed to reset pipeline');
+    },
+
+    async uploadData(formData: FormData): Promise<{ status: string; item_count: number }> {
+        const response = await fetch(`${API_URL}/upload/data`, {
+            method: 'POST',
+            body: formData,
+        });
+        if (!response.ok) throw new Error('Failed to upload data');
+        return response.json();
+    },
+
+    async runPrediction(items: ScrapedItem[]): Promise<any> {
+        const response = await fetch(`${API_URL}/predict`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(items),
+        });
+        if (!response.ok) throw new Error('Failed to run prediction');
+        return response.json();
+    },
+
+    getDownloadModelUrl(): string {
+        return `${API_URL}/download/model`;
     }
 };

@@ -152,12 +152,12 @@ class Scraper:
                             **extracted
                         })
                         print(f"[Extract] ✓ Added (relevance {relevance:.2f})", file=sys.stderr, flush=True)
-                        if len(collected) >= 500:
+                        if len(collected) >= 1000:
                             break
                 else:
                     print(f"[Fetch] ✗ Failed to fetch {article_url}", file=sys.stderr, flush=True)
             
-            if len(collected) >= 500:
+            if len(collected) >= 1000:
                 break
 
         # Fallback: if nothing matched, fetch from landing pages and use AI extraction
@@ -194,12 +194,12 @@ class Scraper:
                                 **extracted
                             })
                             print(f"[Article {articles_checked}] ✓ Added (relevance {relevance:.2f})", file=sys.stderr, flush=True)
-                            if len(collected) >= 500:
+                            if len(collected) >= 1000:
                                 break
                     else:
                         print(f"[Article {articles_checked}] ✗ Failed to fetch", file=sys.stderr, flush=True)
                 
-                if len(collected) >= 500:
+                if len(collected) >= 1000:
                     break
 
         # Sort by AI relevance score and date

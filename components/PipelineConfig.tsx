@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ScrapingConfig } from '../types';
 import { MASTER_PREDICTOR_EVENTS, MASTER_PREDICTOR_RANKS, MASTER_TARGET_CRIMES, MASTER_ORGS_MAJOR, MASTER_COMBOS_EXTENDED } from '../constants';
-import { Check, Search, Calendar, CheckSquare, Square, Fingerprint, Target } from 'lucide-react';
+import { Check, Search, Calendar, CheckSquare, Square, Fingerprint, Target, Upload, Activity } from 'lucide-react';
 import { api } from '../services/api';
 
 interface Props {
@@ -175,18 +175,47 @@ const PipelineConfig: React.FC<Props> = ({ config, setConfig, onStartPipeline })
 
       {/* Date Range - Global */}
       <div className="mb-4 bg-slate-900/50 p-3 rounded-lg border border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Calendar size={16} className="text-blue-400" />
-          <span className="text-xs font-bold text-slate-300">Historical Scope:</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={config.date_range_start}
-            onChange={(e) => setConfig(prev => ({ ...prev, date_range_start: e.target.value }))}
-            className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500"
-          />
-          <span className="text-slate-600 text-xs">to Present</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Calendar size={16} className="text-blue-400" />
+            <span className="text-xs font-bold text-slate-300">Historical Scope:</span>
+            <input
+              type="date"
+              value={config.date_range_start}
+              onChange={(e) => setConfig(prev => ({ ...prev, date_range_start: e.target.value }))}
+              className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500"
+            />
+            <span className="text-slate-600 text-xs">to Present</span>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-slate-700 pl-4">
+            <Target size={16} className="text-purple-400" />
+            <span className="text-xs font-bold text-slate-300">Forecast Horizon:</span>
+            <select
+              value={config.forecast_horizon || 7}
+              onChange={(e) => setConfig(prev => ({ ...prev, forecast_horizon: parseInt(e.target.value) }))}
+              className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-purple-500"
+            >
+              <option value={7}>Next 7 Days</option>
+              <option value={14}>Next 14 Days</option>
+              <option value={30}>Next 30 Days</option>
+              <option value={90}>Next 3 Months</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-slate-700 pl-4">
+            <Activity size={16} className="text-orange-400" />
+            <span className="text-xs font-bold text-slate-300">Granularity:</span>
+            <select
+              value={config.granularity || 'W'}
+              onChange={(e) => setConfig(prev => ({ ...prev, granularity: e.target.value as 'D' | 'W' | 'M' }))}
+              className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-orange-500"
+            >
+              <option value="D">Daily</option>
+              <option value="W">Weekly</option>
+              <option value="M">Monthly</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -276,6 +305,33 @@ const PipelineConfig: React.FC<Props> = ({ config, setConfig, onStartPipeline })
           START DUAL-STREAM SCRAPING (X & Y)
         </button>
         {!isValid && <p className="text-center text-xs text-red-400 mt-2">Please select at least one Predictor Event, one Rank, and one Target Crime.</p>}
+
+        <div className="mt-6 pt-4 border-t border-slate-800">
+          <h3 className="text-center text-[10px] text-slate-500 mb-2 uppercase tracking-widest">OR LOAD EXTERNAL DATA</h3>
+          <label htmlFor="file-upload" className="w-full bg-slate-800 hover:bg-slate-700 cursor-pointer text-slate-300 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all border border-slate-700 hover:border-slate-600">
+            <Upload size={16} /> UPLOAD DATASET (CSV)
+          </label>
+          <input
+            id="file-upload"
+            type="file"
+            className="hidden"
+            accept=".csv"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const formData = new FormData();
+              formData.append('file', file);
+              try {
+                await api.uploadData(formData);
+                // Trigger pipeline start logic or let polling handle it
+                // Ideally, we should notify parent, but polling in App.tsx will catch the stage change to DATA_PREVIEW
+              } catch (err) {
+                console.error("Upload failed", err);
+                alert("Failed to upload file");
+              }
+            }}
+          />
+        </div>
       </div>
     </div>
   );

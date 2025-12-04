@@ -87,29 +87,17 @@ const Documentation = () => {
 
       <DocSection title="2. Violence Risk Index Calculation" icon={<Activity size={20} />}>
         <p>
-          The <strong>Violence Risk Index (0-100)</strong> is a heuristic score that quantifies the potential for instability based on the gathered intelligence. It is NOT a simple count of news articles.
+          The <strong>Violence Risk Index (0-100)</strong> is a hybrid score that combines long-term predictive modeling with real-time zone activity. It ensures that both future threats and current hotspots are accounted for.
         </p>
         <div className="my-4 bg-slate-900 p-4 rounded border border-slate-800">
-          <h4 className="text-white font-bold text-xs mb-2">Calculation Formula</h4>
+          <h4 className="text-white font-bold text-xs mb-2">Hybrid Calculation Formula</h4>
           <code className="block font-mono text-[10px] text-blue-400 mb-2">
-            Risk = Base(40) + OrgFactor + RankFactor + VolumeFactor
+            GlobalRisk = MAX( PredictedFutureRisk, MaxCurrentZoneRisk )
           </code>
           <ul className="space-y-2 text-xs text-slate-400">
-            <li><span className="text-white">Base Risk (40):</span> The baseline instability of the region.</li>
-            <li><span className="text-white">OrgFactor (+5 to +30):</span> Determined by the organization's threat tier.
-              <ul className="list-disc pl-4 mt-1 text-[10px] text-slate-500">
-                <li><strong>Tier 1 (+15):</strong> Transnational/National threat (e.g., Clan del Golfo, Tren de Aragua).</li>
-                <li><strong>Tier 2 (+5):</strong> Local/Regional threat (e.g., La Terraza, Los Chatas).</li>
-              </ul>
-            </li>
-            <li><span className="text-white">RankFactor (+5 to +20):</span> Based on the hierarchy of the target.
-              <ul className="list-disc pl-4 mt-1 text-[10px] text-slate-500">
-                <li><strong>Cabecilla (+15):</strong> Strategic leader. High impact on command and control.</li>
-                <li><strong>Coordinador (+10):</strong> Mid-level manager. Tactical impact.</li>
-                <li><strong>Sicario/Jíbaro (+5):</strong> Operational level. Low strategic impact.</li>
-              </ul>
-            </li>
-            <li><span className="text-white">VolumeFactor (+0 to +10):</span> Normalized score based on news frequency. 50+ articles = Max score.</li>
+            <li><span className="text-white">PredictedFutureRisk:</span> Derived from the Regression Model. It predicts the <em>volume</em> of future crime reports based on recent trigger events (7-day rolling window).</li>
+            <li><span className="text-white">MaxCurrentZoneRisk:</span> The highest risk score observed in any single neighborhood right now. This ensures the system alerts you if a specific zone is "burning", even if the overall city trend is stable.</li>
+            <li><span className="text-white">Zone Risk:</span> Calculated based on the frequency of recent mentions (last 14 days) of a specific Comuna or Barrio in the intelligence feed.</li>
           </ul>
         </div>
         <p>
@@ -117,20 +105,21 @@ const Documentation = () => {
           <br />
           <span className="text-green-500">0-30 (Low):</span> Routine police activity.
           <br />
-          <span className="text-orange-500">31-70 (Elevated):</span> Significant blows to command structures. Expect realignment.
+          <span className="text-orange-500">31-70 (Elevated):</span> Significant blows to command structures or active hotspots detected.
           <br />
-          <span className="text-red-500">71-100 (Critical):</span> Power vacuums detected. High probability of retaliatory violence or turf wars.
+          <span className="text-red-500">71-100 (Critical):</span> Power vacuums detected or high predicted volume of future violence.
         </p>
       </DocSection>
 
-      <DocSection title="3. Predictive Modeling" icon={<Cpu size={20} />}>
+      <DocSection title="3. Predictive Modeling (Temporal Causal)" icon={<Cpu size={20} />}>
         <p>
-          The system uses a hybrid approach. While the Risk Index is heuristic, the <strong>Predictive Engine</strong> uses the structured data to forecast:
+          The system uses a <strong>Supervised Time-Series Regression</strong> approach to forecast future crime volume.
         </p>
         <ul className="list-disc pl-5 space-y-1 mt-2 font-mono text-xs">
-          <li><span className="text-blue-400">Expected Crime Type:</span> The most likely form of reaction (e.g., Homicide vs. Displacement).</li>
-          <li><span className="text-blue-400">Affected Zones:</span> Neighborhoods historically controlled by the disrupted organization.</li>
-          <li><span className="text-blue-400">Duration:</span> Estimated time until stability returns.</li>
+          <li><span className="text-blue-400">Models:</span> Random Forest Regressor & XGBoost Regressor.</li>
+          <li><span className="text-blue-400">Input (X):</span> Rolling window (7 days) of "Trigger Events" (captures, raids) and their relevance scores.</li>
+          <li><span className="text-blue-400">Target (Y):</span> Volume of "Crime Reports" (homicides, extortion) in the <em>next</em> 7 days.</li>
+          <li><span className="text-blue-400">Selection:</span> The system automatically selects the model with the lowest Root Mean Squared Error (RMSE).</li>
         </ul>
       </DocSection>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldAlert, Layout, Code, Play, RefreshCw, ChevronRight, Activity, Target, BookOpen, Database } from 'lucide-react';
+import { ShieldAlert, Layout, Code, Play, RefreshCw, ChevronRight, Activity, Target, BookOpen, Database, Settings } from 'lucide-react';
 import PipelineStatus from './components/PipelineStatus';
 import ProjectArchitecture from './components/ProjectArchitecture';
 import PipelineConfig from './components/PipelineConfig';
@@ -7,8 +7,16 @@ import DataPreview from './components/DataPreview';
 import Documentation from './components/Documentation';
 import AburraMap from './components/AburraMap';
 import ModelMetrics from './components/ModelMetrics';
+import ModelComparison from './components/ModelComparison';
 import CleaningReport from './components/CleaningReport';
+import InferenceView from './components/InferenceView';
+// ... (existing imports)
+
+// ... (inside renderContent function, DASHBOARD case)
+
 import TrainingInsights from './components/TrainingInsights';
+import DataFrameViewer from './components/DataFrameViewer';
+import TrainingVisualization from './components/TrainingVisualization';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar } from 'recharts';
 import { PredictionResult, ProcessingLog, ScrapingConfig, PipelineStage, ScrapedItem, CleaningStats } from './types';
 import { MOCK_LOGS, PROJECT_STRUCTURE, MASTER_PREDICTOR_EVENTS, MASTER_PREDICTOR_RANKS, MASTER_TARGET_CRIMES } from './constants';
@@ -25,7 +33,9 @@ function App() {
     predictor_events: [],
     predictor_ranks: [],
     target_crimes: [],
-    date_range_start: '2023-01-01'
+    date_range_start: '2023-01-01',
+    forecast_horizon: 7,
+    granularity: 'W'
   });
   const [scrapedData, setScrapedData] = useState<ScrapedItem[]>([]);
   const [logs, setLogs] = useState<ProcessingLog[]>(MOCK_LOGS as ProcessingLog[]);
@@ -42,10 +52,14 @@ function App() {
 
         // Only update stage from backend if we're in a processing state
         // Don't override user navigation (DASHBOARD, CONFIGURATION)
-        const processingStages: PipelineStage[] = ['SCRAPING', 'TRAINING', 'DATA_PREVIEW'];
+        // CRITICAL: Exclude TRAINING from auto-updates - user must manually proceed
+        const processingStages: PipelineStage[] = ['SCRAPING', 'DATA_PREVIEW'];
         const isProcessing = processingStages.includes(pipelineStep);
 
-        if (isProcessing && status.stage !== pipelineStep) {
+        // Special case: Allow transition from CONFIGURATION to DATA_PREVIEW (for CSV upload)
+        const allowConfigToPreview = pipelineStep === 'CONFIGURATION' && status.stage === 'DATA_PREVIEW';
+
+        if ((isProcessing && status.stage !== pipelineStep) || allowConfigToPreview) {
           setPipelineStep(status.stage);
         }
 
@@ -57,7 +71,16 @@ function App() {
             setScrapeStats(stats);
           } catch { }
         }
-        if (status.stage === 'DASHBOARD' && !result) {
+        // Load result when training completes
+        // Backend now stays in TRAINING after completion (not INFERENCE)
+        if (pipelineStep === 'TRAINING' && (status.stage === 'TRAINING' || status.stage === 'INFERENCE') && !result) {
+          const res = await api.getResult();
+          if (res) {
+            setResult(res);
+          }
+        }
+        // Load result when reaching INFERENCE or DASHBOARD stage
+        if ((status.stage === 'INFERENCE' || status.stage === 'DASHBOARD') && !result) {
           const res = await api.getResult();
           setResult(res);
         }
@@ -119,7 +142,12 @@ function App() {
   };
 
   const handleTrainModel = async () => {
-    await api.startTraining();
+    try {
+      await api.startTraining();
+      setPipelineStep('TRAINING');
+    } catch (e) {
+      console.error('Failed to start training', e);
+    }
   };
 
   const downloadReport = () => {
@@ -188,14 +216,78 @@ function App() {
           onStartPipeline={handleStartScraping}
         />;
       case 'SCRAPING':
-      case 'TRAINING':
         return (
           <div className="flex flex-col items-center justify-center h-full bg-slate-900/50 rounded-xl border border-slate-800">
             <RefreshCw size={48} className="text-blue-500 animate-spin mb-4" />
             <h3 className="text-xl font-bold text-white animate-pulse">
-              {pipelineStep === 'SCRAPING' ? 'DUAL-STREAM SCRAPING (X & Y)...' : 'RETRAINING PREDICTIVE MODEL...'}
+              DUAL-STREAM SCRAPING (X & Y)...
             </h3>
             <p className="text-slate-400 font-mono mt-2">Processing large dataset (2010 - Present).</p>
+          </div>
+        );
+      case 'TRAINING':
+        return (
+          <div className="flex flex-col gap-6 h-full overflow-y-auto pr-2 custom-scrollbar">
+            {/* Training Results Header */}
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+              <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-3">
+                <div className="w-8 h-8 rounded bg-green-500/20 flex items-center justify-center text-green-400">
+                  <Activity size={18} />
+                </div>
+                Training Complete
+              </h2>
+              <p className="text-slate-400 text-sm">
+                Review the model performance metrics below before proceeding to inference.
+              </p>
+            </div>
+
+            {/* Training Insights */}
+            {result?.model_metadata && (
+              <TrainingInsights
+                metadata={result.model_metadata}
+                metrics={result.training_metrics}
+              />
+            )}
+
+            {/* Model Comparison */}
+            {result?.model_comparison && (
+              <ModelComparison comparison={result.model_comparison} />
+            )}
+
+            {/* Model Metrics */}
+            {result?.training_metrics && (
+              <ModelMetrics metrics={result.training_metrics} />
+            )}
+
+            {/* Historical Visualization */}
+            <TrainingVisualization data={result?.training_data_full} />
+
+            {/* DataFrame Samples */}
+            <DataFrameViewer
+              data={result?.training_data_sample}
+              fullData={result?.training_data_full}
+              title="Training Set"
+              description="Showing first 10 rows | Download button exports complete dataset"
+              highlightTarget={true}
+            />
+
+            <DataFrameViewer
+              data={result?.test_data_sample}
+              fullData={result?.test_data_full}
+              title="Test Set"
+              description="Showing first 10 rows | Download button exports complete dataset"
+              highlightTarget={true}
+            />
+
+            {/* Proceed Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setPipelineStep('INFERENCE')}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-blue-900/20 flex items-center gap-3 transition-all"
+              >
+                Proceed to Inference / Dashboard <ChevronRight size={20} />
+              </button>
+            </div>
           </div>
         );
       case 'DATA_PREVIEW':
@@ -207,6 +299,8 @@ function App() {
             </div>
           </div>
         );
+      case 'INFERENCE':
+        return <InferenceView onViewDashboard={() => setPipelineStep('DASHBOARD')} />;
       case 'DASHBOARD':
       default:
         return (
@@ -219,9 +313,6 @@ function App() {
               </div>
               <button onClick={downloadReport} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-green-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2">
                 <Database size={14} /> EXPORT DATA
-              </button>
-              <button onClick={handleStartNewAnalysis} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2">
-                <RefreshCw size={14} /> NEW ANALYSIS RUN
               </button>
             </div>
 
@@ -252,8 +343,17 @@ function App() {
 
             {/* Middle Section: Training Metrics & Confusion Matrix */}
             {result?.model_metadata && (
-              <TrainingInsights metadata={result.model_metadata} />
+              <TrainingInsights
+                metadata={result.model_metadata}
+                metrics={result.training_metrics}
+              />
             )}
+
+            {/* New Multi-Model Comparison Section */}
+            {result?.model_comparison && (
+              <ModelComparison comparison={result.model_comparison} />
+            )}
+
             {result?.training_metrics && (
               <ModelMetrics metrics={result.training_metrics} />
             )}
@@ -268,18 +368,47 @@ function App() {
                       No zone risk data available.
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={result.zone_risks} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                        <XAxis dataKey="zone" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-45} textAnchor="end" height={60} />
-                        <YAxis stroke="#64748b" fontSize={10} domain={[0, 100]} tickLine={false} axisLine={false} />
+                    <ResponsiveContainer width="100%" height={400}>
+                      <AreaChart data={result.zone_risks} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                        <defs>
+                          <linearGradient id="riskGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis
+                          dataKey="zone"
+                          stroke="#64748b"
+                          fontSize={10}
+                          tickLine={false}
+                          axisLine={false}
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                        />
+                        <YAxis
+                          domain={[0, 100]}
+                          stroke="#64748b"
+                          fontSize={10}
+                          tickLine={false}
+                          axisLine={false}
+                          label={{ value: 'Risk Score', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: '#64748b' } }}
+                        />
                         <Tooltip
                           contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }}
                           itemStyle={{ color: '#e2e8f0' }}
-                          cursor={{ fill: '#1e293b', opacity: 0.4 }}
                         />
-                        <Bar dataKey="risk" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                      </BarChart>
+                        <Area
+                          type="monotone"
+                          dataKey="risk"
+                          stroke="#ef4444"
+                          strokeWidth={2}
+                          fill="url(#riskGradient)"
+                          dot={{ fill: '#ef4444', r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </AreaChart>
                     </ResponsiveContainer>
                   )}
                 </div>
@@ -335,6 +464,20 @@ function App() {
             <BookOpen size={12} /> Docs
           </button>
         </div>
+
+        {/* Back to Configuration Button */}
+        {pipelineStep !== 'CONFIGURATION' && pipelineStep !== 'SCRAPING' && pipelineStep !== 'TRAINING' && (
+          <button
+            onClick={() => {
+              setPipelineStep('CONFIGURATION');
+              setScrapedData([]);
+              setScrapeStats(undefined);
+            }}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2 transition-colors"
+          >
+            <Settings size={14} /> NUEVA CONFIGURACIÓN
+          </button>
+        )}
       </nav>
 
       {/* Main Content */}
@@ -345,7 +488,7 @@ function App() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pipeline Status</h3>
               <div className="space-y-2">
-                {['CONFIGURATION', 'SCRAPING', 'DATA_PREVIEW', 'TRAINING', 'DASHBOARD'].map((step, idx) => (
+                {['CONFIGURATION', 'SCRAPING', 'DATA_PREVIEW', 'TRAINING', 'INFERENCE', 'DASHBOARD'].map((step, idx) => (
                   <div key={step} className={`flex items-center gap-3 p-2 rounded-lg text-xs font-mono border ${pipelineStep === step ? 'bg-blue-900/20 border-blue-500 text-blue-300' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
                     <div className={`w-2 h-2 rounded-full ${pipelineStep === step ? 'bg-blue-500 animate-pulse' : 'bg-slate-700'}`}></div>
                     {step}
