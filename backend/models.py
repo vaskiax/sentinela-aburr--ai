@@ -75,6 +75,10 @@ class ModelMetadata(BaseModel):
     model_type: str
     data_period_start: Optional[str] = None
     data_period_end: Optional[str] = None
+    granularity: Optional[str] = None  # 'D' | 'W' | 'M'
+    horizon_days: Optional[int] = None  # Number of days for lookback window
+    horizon_units: Optional[int] = None  # Number of periods (e.g., 2 for 2 weeks)
+    horizon_suffix: Optional[str] = None  # 'd' | 'w' | 'm'
 
 class PredictionResult(BaseModel):
     risk_score: float

@@ -326,7 +326,7 @@ function App() {
                 </div>
               </div>
               <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg col-span-2">
-                <p className="text-[10px] text-slate-500 font-mono mb-1 uppercase">Primary Predicted Crime</p>
+                <p className="text-[10px] text-slate-500 font-mono mb-1 uppercase">Predicted Crime Volume</p>
                 <div className="text-2xl font-bold text-white mt-1">{result?.expected_crime_type ?? 'No data'}</div>
                 <div className="flex gap-2 mt-2">
                   {result?.affected_zones?.slice(0, 4).map(z => (

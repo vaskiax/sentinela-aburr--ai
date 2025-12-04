@@ -327,23 +327,28 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
                                     <div className="mt-4 p-3 bg-slate-950 rounded border border-slate-800 text-xs text-slate-300 leading-relaxed">
                                         {(() => {
                                             const volume = prediction.predicted_crime_volume;
-                                            const days = inputStats.forecastHorizon;
+                                            const forecastDays = inputStats.forecastHorizon;
+                                            const granularity = prediction.model_metadata?.granularity || 'W';
+                                            
+                                            // Get ACTUAL values from model metadata (what was used during training/feature engineering)
+                                            const horizonUnits = prediction.model_metadata?.horizon_units ?? 1;
+                                            const horizonDays = prediction.model_metadata?.horizon_days ?? forecastDays;
+                                            const horizonSuffix = prediction.model_metadata?.horizon_suffix ?? 'w';
 
                                             // Get actual feature values used for prediction (last row of inference data)
                                             const lastRow = prediction.inference_data_sample?.[prediction.inference_data_sample.length - 1];
 
-                                            // Calculate weeks for feature lookup
-                                            const weeks = Math.max(1, Math.round(days / 7));
+                                            // Use ONLY the values from the last row (what the model actually used for prediction)
+                                            // Column name must match exactly what the backend generated
+                                            const triggersUsed = lastRow?.[`triggers_last_${horizonUnits}${horizonSuffix}`] ?? 0;
+                                            const relevanceUsed = lastRow?.[`relevance_last_${horizonUnits}${horizonSuffix}`] ?? 0;
 
-                                            const triggersUsed = lastRow?.[`triggers_last_${weeks}w`] || inputStats.triggerCount;
-                                            const relevanceUsed = lastRow?.[`relevance_last_${weeks}w`] || 0;
-
-                                            // Calculate the actual date range used for the prediction (last X weeks before the last date)
+                                            // Calculate the actual date range used for the prediction
                                             let analysisWindow = null;
                                             if (lastRow?.date) {
                                                 const lastDate = new Date(lastRow.date);
                                                 const startDate = new Date(lastDate);
-                                                startDate.setDate(startDate.getDate() - (weeks * 7));
+                                                startDate.setDate(startDate.getDate() - horizonDays);
                                                 analysisWindow = {
                                                     start: startDate.toISOString().split('T')[0],
                                                     end: lastDate.toISOString().split('T')[0]
@@ -363,18 +368,16 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
 
                                             return (
                                                 <>
-                                                    Based on <strong className="text-blue-400">{triggersUsed.toFixed(0)} trigger events</strong> in the last <strong className="text-blue-400">{weeks} weeks</strong> (weighted relevance: <strong className="text-blue-400">{relevanceUsed.toFixed(2)}</strong>)
+                                                    Based on <strong className="text-blue-400">{triggersUsed.toFixed(0)} trigger events</strong> in the last <strong className="text-blue-400">{horizonDays} days</strong> (weighted relevance: <strong className="text-blue-400">{relevanceUsed.toFixed(2)}</strong>)
                                                     {analysisWindow && (
                                                         <> from <strong className="text-blue-400">{analysisWindow.start}</strong> to <strong className="text-blue-400">{analysisWindow.end}</strong></>
                                                     )}, the model projects a <strong className={trendColor}>{trend} trend</strong> of criminality
-                                                    over the next <strong className="text-purple-400">{weeks} weeks</strong>.
+                                                    over the next <strong className="text-purple-400">{forecastDays} days</strong>.
                                                 </>
                                             );
                                         })()}
                                     </div>
-                                </div>
-
-                                <div className="w-full h-px bg-slate-800"></div>
+                                </div>                                <div className="w-full h-px bg-slate-800"></div>
 
                                 <div className="grid grid-cols-2 gap-4 w-full">
                                     <div className="bg-slate-950 p-3 rounded border border-slate-800">

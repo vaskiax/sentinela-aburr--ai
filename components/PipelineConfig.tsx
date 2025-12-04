@@ -242,7 +242,7 @@ const PipelineConfig: React.FC<Props> = ({ config, setConfig, onStartPipeline })
 
             <SelectionGroup
               title="Rank Filter (Filters)"
-              items={options.ranks.length > 0 ? options.ranks : MASTER_PREDICTOR_RANKS}
+              items={MASTER_PREDICTOR_RANKS}
               selected={config.predictor_ranks}
               onToggle={toggleRank}
               onSelectAll={selectAllRanks}
@@ -321,6 +321,9 @@ const PipelineConfig: React.FC<Props> = ({ config, setConfig, onStartPipeline })
               if (!file) return;
               const formData = new FormData();
               formData.append('file', file);
+              // Include forecast_horizon and granularity for training
+              formData.append('forecast_horizon', String(config.forecast_horizon || 7));
+              formData.append('granularity', config.granularity || 'W');
               try {
                 await api.uploadData(formData);
                 // Trigger pipeline start logic or let polling handle it

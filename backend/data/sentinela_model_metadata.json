@@ -1,0 +1,1 @@
+{"granularity": "M", "horizon_days": 90, "horizon_units": 3, "horizon_suffix": "m", "model_name": "Random Forest Regressor"}

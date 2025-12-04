@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, File, UploadFile
+from fastapi import FastAPI, HTTPException, BackgroundTasks, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from typing import List, Optional
@@ -259,8 +259,8 @@ async def get_scrape_stats():
 # --- New MLOps Endpoints ---
 
 @app.post("/api/upload/data")
-async def upload_data(file: UploadFile = File(...)):
-    global scraped_data, current_stage, scrape_stats
+async def upload_data(file: UploadFile = File(...), forecast_horizon: int = Form(7), granularity: str = Form('W')):
+    global scraped_data, current_stage, scrape_stats, current_config
     
     try:
         df = pd.read_csv(file.file)
@@ -294,9 +294,27 @@ async def upload_data(file: UploadFile = File(...)):
             final_count=len(items)
         )
         
+        # Store training parameters from CSV upload
+        print(f"[UPLOAD] Received forecast_horizon={forecast_horizon}, granularity={granularity}", flush=True)
+        if not current_config:
+            current_config = ScrapingConfig(
+                target_organizations=[],
+                local_combos=[],
+                date_range_start="2023-01-01",
+                predictor_events=[],
+                predictor_ranks=[],
+                target_crimes=[],
+                forecast_horizon=forecast_horizon,
+                granularity=granularity
+            )
+        else:
+            current_config.forecast_horizon = forecast_horizon
+            current_config.granularity = granularity
+        print(f"[UPLOAD] Config updated: forecast_horizon={current_config.forecast_horizon}, granularity={current_config.granularity}", flush=True)
+        
         current_stage = PipelineStage.DATA_PREVIEW
         add_log(PipelineStage.CONFIGURATION, f"Successfully uploaded and parsed {len(items)} records.")
-        add_log(PipelineStage.DATA_PREVIEW, "Data ready for preview.")
+        add_log(PipelineStage.DATA_PREVIEW, f"Data ready for preview. Training params: horizon={forecast_horizon}d, granularity={granularity}")
         
         return {"status": "success", "item_count": len(items)}
 

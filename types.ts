@@ -59,6 +59,10 @@ export interface ModelMetadata {
   model_type: string;
   data_period_start?: string;
   data_period_end?: string;
+  granularity?: string; // 'D' | 'W' | 'M'
+  horizon_days?: number; // Number of days for lookback window
+  horizon_units?: number; // Number of periods (e.g., 2 for 2 weeks)
+  horizon_suffix?: string; // 'd' | 'w' | 'm'
 }
 
 export interface PredictionResult {

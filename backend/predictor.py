@@ -25,7 +25,9 @@ class Predictor:
         self.models = {}
         self.best_model_name = "None"
         self.best_model = None
-        self.model_path = "backend/data/sentinela_model.joblib"
+        # Use absolute path to ensure model can be found regardless of working directory
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        self.model_path = os.path.join(backend_dir, "data", "sentinela_model.joblib")
 
     def train_and_predict(self, config: ScrapingConfig, items: List[ScrapedItem]) -> PredictionResult:
         """
@@ -168,6 +170,20 @@ class Predictor:
             os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
             joblib.dump(self.best_model, self.model_path)
             print(f"[Predictor] Model '{self.best_model_name}' saved to {self.model_path}")
+            
+            # Also save model metadata for inference (granularity, horizon, etc.)
+            import json
+            metadata_path = self.model_path.replace('.joblib', '_metadata.json')
+            metadata = {
+                'granularity': granularity,
+                'horizon_days': horizon_days,
+                'horizon_units': horizon_units,
+                'horizon_suffix': suffix,
+                'model_name': self.best_model_name
+            }
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f)
+            print(f"[Predictor] Model metadata saved to {metadata_path}")
         except Exception as e:
             print(f"[Predictor] Warning: Failed to save model: {e}")
 
@@ -200,7 +216,8 @@ class Predictor:
                 ],
                 model_type=f"Supervised Time-Series Regression ({self.best_model_name})",
                 data_period_start=str(model_data.index.min().date()),
-                data_period_end=str(model_data.index.max().date())
+                data_period_end=str(model_data.index.max().date()),
+                granularity=granularity
             ),
             training_data_sample=training_data_sample,
             test_data_sample=test_data_sample,
@@ -218,6 +235,20 @@ class Predictor:
         # Cargar el modelo entrenado
         model = joblib.load(self.model_path)
         print(f"[Predictor] Model loaded from {self.model_path} for inference.")
+        
+        # Load model metadata (granularity, horizon, etc.)
+        import json
+        metadata_path = self.model_path.replace('.joblib', '_metadata.json')
+        training_metadata = {}
+        if os.path.exists(metadata_path):
+            try:
+                with open(metadata_path, 'r') as f:
+                    training_metadata = json.load(f)
+                print(f"[Predictor] Model metadata loaded from {metadata_path}")
+                print(f"[Predictor] Training granularity: {training_metadata.get('granularity')}")
+            except Exception as e:
+                print(f"[Predictor] Warning: Failed to load metadata: {e}")
+        
         print(f"[Predictor] ===== INFERENCE DEBUG LOG =====")
         print(f"[Predictor] Input items count: {len(new_items)}")
 
@@ -246,11 +277,19 @@ class Predictor:
                 "predicted_crime_volume": 0,
                 "forecast_horizon": getattr(config, 'forecast_horizon', 7) or 7,
                 "status": "warning",
-                "message": "No trigger events found in input data."
+                "message": "No trigger events found in input data.",
+                "model_metadata": {
+                    "granularity": training_metadata.get('granularity', getattr(config, 'granularity', 'W')),
+                    "horizon_days": getattr(config, 'forecast_horizon', 7) or 7,
+                    "horizon_units": 0,
+                    "horizon_suffix": 'd'
+                }
             }
 
-        # Granularity from Config
-        granularity = getattr(config, 'granularity', 'W')
+        # Use granularity from training (stored metadata), not from config
+        # This ensures consistency between training and inference feature engineering
+        granularity = training_metadata.get('granularity', getattr(config, 'granularity', 'W'))
+        print(f"[Predictor] Using granularity for inference: {granularity}")
 
         # Agregación Dinámica
         daily_triggers = triggers_df.set_index('date').resample(granularity).size().rename('trigger_count')
@@ -284,7 +323,13 @@ class Predictor:
                 "predicted_crime_volume": 0,
                 "forecast_horizon": horizon_days,
                 "status": "warning",
-                "message": "Insufficient data for feature engineering."
+                "message": "Insufficient data for feature engineering.",
+                "model_metadata": {
+                    "granularity": granularity,
+                    "horizon_days": horizon_days,
+                    "horizon_units": horizon_units,
+                    "horizon_suffix": suffix
+                }
             }
 
         last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}']].iloc[-1:]
@@ -318,7 +363,13 @@ class Predictor:
             "forecast_horizon": horizon_days,
             "status": "success",
             "inference_data_sample": inference_data_sample,
-            "inference_data_full": inference_data_full
+            "inference_data_full": inference_data_full,
+            "model_metadata": {
+                "granularity": training_metadata.get('granularity', granularity),
+                "horizon_days": training_metadata.get('horizon_days', horizon_days),
+                "horizon_units": training_metadata.get('horizon_units', horizon_units),
+                "horizon_suffix": training_metadata.get('horizon_suffix', suffix)
+            }
         }
 
     def _extract_recent_zones(self, df: pd.DataFrame) -> List[str]:
