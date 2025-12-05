@@ -47,19 +47,22 @@ class NLPProcessor:
         print(f"[AI Query Builder] Input config - orgs: {config.target_organizations}, events: {config.predictor_events}, crimes: {config.target_crimes}", file=sys.stderr, flush=True)
         
         if not self.client:
-            # Fallback: simple combinations
+            # Fallback: simple combinations with date constraints
+            import datetime
+            start_year = int(config.date_range_start.split('-')[0])
+            current_year = datetime.datetime.now().year
             queries = []
             all_groups = (config.target_organizations or []) + (config.local_combos or [])
             for group in all_groups[:5]:
                 for event in (config.predictor_events or [])[:2]:
-                    queries.append(f'"{group}" "{event}" Medellín')
+                    queries.append(f'"{group}" "{event}" Medellín {current_year}')
             # Add location-specific queries with barrios if available
             barrio_locs = (self.barrio_keywords or [])[:8]
             for crime in (config.target_crimes or [])[:2]:
                 if barrio_locs:
                     for b in barrio_locs:
-                        queries.append(f'"{crime}" "{b}" Medellín')
-                queries.append(f'"{crime}" Valle de Aburrá')
+                        queries.append(f'"{crime}" "{b}" Medellín {current_year}')
+                queries.append(f'"{crime}" Valle de Aburrá {start_year}-{current_year}')
             print(f"[AI Query Builder] Generated {len(queries)} fallback queries: {queries}", file=sys.stderr, flush=True)
             return queries[:8] if queries else ['Medellín noticias judiciales']
         
@@ -84,17 +87,25 @@ class NLPProcessor:
             print(f"  - Crimes ({len(crimes_list)}): {crimes}", file=sys.stderr, flush=True)
             
             barrios = ', '.join((self.barrio_keywords or [])[:25]) or 'Santo Domingo, Manrique, Robledo, Guayabal'
+            
+            # Extract year range for date-specific queries
+            import datetime
+            start_year = int(config.date_range_start.split('-')[0])
+            current_year = datetime.datetime.now().year
+            year_range = f"{start_year}-{current_year}" if current_year > start_year else str(current_year)
+            
             prompt = f"""You are a search query expert for Colombian crime news. Generate up-to 50 precise search queries in Spanish to find:
 - Trigger events: {events} involving {ranks} from organizations: {orgs}, local combos: {combos}
 - Crime trends: {crimes} in Valle de Aburrá
 - Prioritize location keywords using these barrios/colonias: {barrios}
 
+IMPORTANT: ALL queries must include specific years or date ranges between {start_year} and {current_year}.
 Use the EXACT organization names, event types, ranks, crimes, and barrios provided above.
 Include queries for the entire date range starting from {config.date_range_start} to present.
-Generate a mix of specific queries (Org + Event + Barrio) and broad queries (Crime + Location + Year).
+Generate a mix of specific queries (Org + Event + Barrio + Year) and broad queries (Crime + Location + Year Range).
 Optimize for Colombian news sites (minuto30.com, elcolombiano.com, qhubomedellin.com).
 Return ONLY a JSON array of query strings, no explanation.
-Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle de Aburrá 2015-2020", "Aumento extorsión Bello 2024", "Extorsión Guayabal 2024"]"""
+Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle de Aburrá {year_range}", "Extorsión Bello 2024", "Capturas Itagüí {start_year}"]"""
 
             print(f"[AI Query Builder] Sending prompt to DeepSeek...", file=sys.stderr, flush=True)
             response = self.client.chat.completions.create(

@@ -207,10 +207,12 @@ async def run_training_task():
         # If no config exists (e.g., from CSV upload), create a default one
         if not current_config:
             print("No config found, creating default", flush=True)
+            from datetime import datetime, timedelta
+            default_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
             current_config = ScrapingConfig(
                 target_organizations=[],
                 local_combos=[],
-                date_range_start="2023-01-01",
+                date_range_start=default_date,
                 predictor_events=[],
                 predictor_ranks=[],
                 target_crimes=[],
@@ -319,12 +321,12 @@ async def get_scrape_stats():
 # --- New MLOps Endpoints ---
 
 @app.post("/api/upload/data")
-async def upload_data(file: UploadFile = File(...), forecast_horizon: int = Form(7), granularity: str = Form('W')):
+async def upload_data(file: UploadFile = File(...), forecast_horizon: int = Form(7), granularity: str = Form('W'), date_range_start_param: str = Form(None)):
     global scraped_data, current_stage, scrape_stats, current_config
     
     try:
         print(f"[UPLOAD] Starting file upload: {file.filename}", flush=True)
-        print(f"[UPLOAD] Parameters: forecast_horizon={forecast_horizon}, granularity={granularity}", flush=True)
+        print(f"[UPLOAD] Parameters: forecast_horizon={forecast_horizon}, granularity={granularity}, date_range_start={date_range_start_param}", flush=True)
         
         try:
             df = pd.read_csv(file.file)
@@ -399,13 +401,33 @@ async def upload_data(file: UploadFile = File(...), forecast_horizon: int = Form
             final_count=len(items)
         )
         
-        # Store training parameters from CSV upload
-        print(f"[UPLOAD] Received forecast_horizon={forecast_horizon}, granularity={granularity}", flush=True)
+        # Store training parameters from CSV upload - use date_range_start_param
+        date_range_start = date_range_start_param
+        print(f"[UPLOAD] Received date_range_start_param (raw from form): '{date_range_start_param}'", flush=True)
+        print(f"[UPLOAD] Received forecast_horizon={forecast_horizon}, granularity={granularity}, date_range_start (after assign)='{date_range_start}'", flush=True)
+        
+        # Handle 'None' string from FormData (when null is sent from frontend)
+        if date_range_start == 'None' or date_range_start is None or date_range_start == '':
+            date_range_start = None
+            print(f"[UPLOAD] date_range_start is empty/None, will use fallback logic", flush=True)
+        
+        # Determine date_range_start: use parameter if provided, otherwise preserve current_config or use 90 days ago
+        if not date_range_start or date_range_start == "":
+            if current_config and current_config.date_range_start:
+                date_range_start = current_config.date_range_start
+                print(f"[UPLOAD] Using date_range_start from current_config: {date_range_start}", flush=True)
+            else:
+                from datetime import datetime, timedelta
+                date_range_start = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+                print(f"[UPLOAD] No date_range_start provided, using default (90 days ago): {date_range_start}", flush=True)
+        else:
+            print(f"[UPLOAD] Using date_range_start from form parameter: {date_range_start}", flush=True)
+        
         if not current_config:
             current_config = ScrapingConfig(
                 target_organizations=[],
                 local_combos=[],
-                date_range_start="2023-01-01",
+                date_range_start=date_range_start,
                 predictor_events=[],
                 predictor_ranks=[],
                 target_crimes=[],

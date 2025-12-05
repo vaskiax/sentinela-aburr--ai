@@ -349,11 +349,25 @@ const PipelineConfig: React.FC<Props> = ({ config, setConfig, onStartPipeline })
             onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file) return;
+              
+              // CRITICAL: First send current config to backend to ensure date_range_start is set
+              try {
+                await api.setConfig(config);
+                console.log('[Upload] Config sent to backend before file upload:', config);
+              } catch (err) {
+                console.error("[Upload] Failed to set config before upload", err);
+                // Continue anyway - upload will use FormData values
+              }
+              
               const formData = new FormData();
               formData.append('file', file);
-              // Include forecast_horizon and granularity for training
+              // Include forecast_horizon, granularity, and date_range_start for training
               formData.append('forecast_horizon', String(config.forecast_horizon || 7));
               formData.append('granularity', config.granularity || 'W');
+              // Ensure date_range_start is always a valid date string
+              const dateValue = config.date_range_start || '2023-01-01';
+              formData.append('date_range_start', dateValue);
+              console.log('[Upload] Sending date_range_start:', dateValue);
               try {
                 await api.uploadData(formData);
                 // Trigger pipeline start logic or let polling handle it

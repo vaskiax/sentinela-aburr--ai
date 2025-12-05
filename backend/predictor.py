@@ -20,7 +20,23 @@ class Predictor:
         # Load barrio → comuna index
         loader = data_loader or DataLoader()
         self.barrio_index = loader.get_barrio_index()
-        self.comuna_set = sorted({b['comuna_nombre'] for b in self.barrio_index if b.get('comuna_nombre')})
+        csv_comunas = sorted({b['comuna_nombre'] for b in self.barrio_index if b.get('comuna_nombre')})
+        
+        # FALLBACK: Known zones in Valle de Aburrá (Medellín comunas + metropolitan municipalities)
+        known_zones_fallback = [
+            # Medellín comunas (from combos_v2.csv)
+            "Popular", "Santa Cruz", "Manrique", "Aranjuez", "Castilla",
+            "Doce de Octubre", "Robledo", "Villa Hermosa", "Buenos Aires",
+            "Candelaria", "Laureles", "La América", "San Javier", "Poblado",
+            "Guayabal", "Belén",
+            # Valle de Aburrá municipalities (not in CSV but appear in articles)
+            "Itagüí", "Envigado", "Bello", "Copacabana", "Sabaneta",
+            "La Estrella", "Caldas", "Barbosa", "Girardota"
+        ]
+        
+        # Merge CSV comunas with fallback zones
+        self.comuna_set = sorted(set(csv_comunas + known_zones_fallback))
+        
         self.models = {}
         self.best_model_name = "None"
         self.best_model = None
@@ -42,7 +58,7 @@ class Predictor:
         return counts
 
     def _get_historical_max_zone_activity(self, df: pd.DataFrame, window_days: int = 14) -> float:
-        """Max rolling sum of mentions per comuna (using barrio mentions)."""
+        """Max rolling sum of mentions per comuna (using barrio mentions + direct comuna mentions)."""
         triggers = df[df['type'] == 'TRIGGER_EVENT'].copy()
         if triggers.empty:
             return 10.0  # Fallback por defecto
@@ -50,13 +66,23 @@ class Predictor:
         daily_zone_counts = []
         for date in sorted(triggers['date'].unique()):
             day_text = " ".join(triggers[triggers['date'] == date]['text'].tolist())
-            barrio_counts = self._count_barrio_mentions(day_text)
+            day_text_lower = day_text.lower()
             comuna_counts: Dict[str, int] = {}
+            
+            # 1. Contar barrios y agregar a comunas
+            barrio_counts = self._count_barrio_mentions(day_text)
             for barrio, cnt in barrio_counts.items():
                 comuna = next((b['comuna_nombre'] for b in self.barrio_index if b['barrio'] == barrio), None)
                 if not comuna:
                     continue
                 comuna_counts[comuna] = comuna_counts.get(comuna, 0) + cnt
+            
+            # 2. FALLBACK: También buscar menciones directas de comunas
+            for comuna in self.comuna_set:
+                direct_count = day_text_lower.count(comuna.lower())
+                if direct_count > 0:
+                    comuna_counts[comuna] = comuna_counts.get(comuna, 0) + direct_count
+            
             if comuna_counts:
                 daily_zone_counts.append({"date": date, **comuna_counts})
 
@@ -106,6 +132,23 @@ class Predictor:
         ])
         df.dropna(subset=['date'], inplace=True)
         df.drop_duplicates(subset=['url', 'date'], inplace=True) # Remove duplicate articles
+        
+        # FILTER BY DATE RANGE from config
+        if hasattr(config, 'date_range_start') and config.date_range_start:
+            date_threshold = pd.to_datetime(config.date_range_start)
+            original_count = len(df)
+            df = df[df['date'] >= date_threshold]
+            filtered_count = original_count - len(df)
+            if filtered_count > 0:
+                print(f"[Data Filter] Removed {filtered_count} articles before {config.date_range_start} ({original_count} → {len(df)})", flush=True)
+            # Verify date range after filter
+            if len(df) > 0:
+                print(f"[Data Filter] DataFrame date range: {df['date'].min()} to {df['date'].max()}", flush=True)
+        else:
+            print(f"[Data Filter] WARNING: No date_range_start configured! config.date_range_start = {getattr(config, 'date_range_start', 'NOT SET')}", flush=True)
+            if len(df) > 0:
+                print(f"[Data Filter] Using FULL date range: {df['date'].min()} to {df['date'].max()}", flush=True)
+        
         df.sort_values('date', inplace=True)
 
         # --- 2. Temporal Feature Engineering ---
@@ -115,12 +158,29 @@ class Predictor:
         # Granularity from Config
         granularity = getattr(config, 'granularity', 'W')
         
+        # Determine date range for resampling
+        date_threshold = None
+        if hasattr(config, 'date_range_start') and config.date_range_start:
+            date_threshold = pd.to_datetime(config.date_range_start)
+            print(f"[Resample] Date threshold for limiting resampled data: {date_threshold}", flush=True)
+        
         # Agregación Dinámica
         daily_triggers = triggers_df.set_index('date').resample(granularity).size().rename('trigger_count')
         daily_trigger_relevance = triggers_df.set_index('date')['relevance'].resample(granularity).sum().rename('trigger_relevance_sum')
         daily_crimes = crimes_df.set_index('date').resample(granularity).size().rename('crime_count')
 
         features_df = pd.concat([daily_triggers, daily_trigger_relevance], axis=1).fillna(0)
+        
+        # CRITICAL: After resample, limit index to date_range_start onwards
+        # This prevents resample from creating entries for old periods
+        if date_threshold is not None:
+            original_features_count = len(features_df)
+            features_df = features_df[features_df.index >= date_threshold]
+            filtered_features_count = original_features_count - len(features_df)
+            if filtered_features_count > 0:
+                print(f"[Data Filter] Removed {filtered_features_count} resampled rows before {config.date_range_start} ({original_features_count} → {len(features_df)})", flush=True)
+            if len(features_df) > 0:
+                print(f"[Data Filter] Features date range after filter: {features_df.index.min()} to {features_df.index.max()}", flush=True)
 
         # Dynamic Horizon Calculation
         horizon_days = getattr(config, 'forecast_horizon', 7) or 7
@@ -156,6 +216,16 @@ class Predictor:
         features_df[f'crimes_next_{horizon_units}{suffix}'] = daily_crimes.rolling(window=horizon_units, min_periods=1).sum().shift(-horizon_units)
 
         model_data = features_df.dropna()
+        
+        # ADDITIONAL FILTER: Remove rows from model_data that fall BEFORE the date threshold
+        # This ensures Historical Correlation chart only shows data within configured range
+        if hasattr(config, 'date_range_start') and config.date_range_start:
+            date_threshold = pd.to_datetime(config.date_range_start)
+            original_model_count = len(model_data)
+            model_data = model_data[model_data.index >= date_threshold]
+            filtered_model_count = original_model_count - len(model_data)
+            if filtered_model_count > 0:
+                print(f"[Data Filter] Removed {filtered_model_count} model_data rows before {config.date_range_start} ({original_model_count} → {len(model_data)})", flush=True)
 
         min_samples = 10 if granularity == 'D' else 5
         if len(model_data) < min_samples:
@@ -671,22 +741,32 @@ class Predictor:
 
 
     def _extract_recent_zones(self, df: pd.DataFrame) -> List[str]:
-        # Helper to get zones (comunas) from triggers in the last 14 days using barrio mentions
+        # Helper to get zones (comunas) from triggers in the last 14 days using barrio mentions + direct comuna mentions
         if df.empty or 'text' not in df.columns:
             return []
         recent_triggers = df[(df['type'] == 'TRIGGER_EVENT') & (df['date'] > df['date'].max() - pd.Timedelta(days=14))]
         comuna_mentions: Dict[str, int] = {}
         for text in recent_triggers['text']:
+            text_lower = str(text).lower()
+            
+            # Contar barrios y agregar a comunas
             counts = self._count_barrio_mentions(text)
             for barrio, cnt in counts.items():
                 comuna = next((b['comuna_nombre'] for b in self.barrio_index if b['barrio'] == barrio), None)
                 if not comuna:
                     continue
                 comuna_mentions[comuna] = comuna_mentions.get(comuna, 0) + cnt
+            
+            # FALLBACK: También buscar menciones directas de comunas
+            for comuna in self.comuna_set:
+                direct_count = text_lower.count(comuna.lower())
+                if direct_count > 0:
+                    comuna_mentions[comuna] = comuna_mentions.get(comuna, 0) + direct_count
+        
         return [zona for zona, count in sorted(comuna_mentions.items(), key=lambda x: x[1], reverse=True)[:5]]
 
     def _calculate_zone_risks(self, df: pd.DataFrame, benchmark_max: float = 10.0) -> Tuple[List[dict], float]:
-        """Calcula riesgo por comuna usando menciones de barrios.
+        """Calcula riesgo por comuna usando menciones de barrios + menciones directas de comunas.
 
         Retorna (lista_zone_risks, max_zone_risk_score) donde cada entrada incluye:
         { zone: comuna, risk: %, mentions: total_menciones, breakdown: [{barrio, mentions}] }
@@ -703,6 +783,9 @@ class Predictor:
         comuna_breakdown: Dict[str, Dict[str, int]] = {}
 
         for text in recent_triggers['text']:
+            text_lower = str(text).lower()
+            
+            # 1. Contar barrios y agregar a comunas
             counts = self._count_barrio_mentions(text)
             for barrio, cnt in counts.items():
                 comuna = next((b['comuna_nombre'] for b in self.barrio_index if b['barrio'] == barrio), None)
@@ -711,6 +794,18 @@ class Predictor:
                 comuna_mentions[comuna] = comuna_mentions.get(comuna, 0) + cnt
                 bd = comuna_breakdown.setdefault(comuna, {})
                 bd[barrio] = bd.get(barrio, 0) + cnt
+            
+            # 2. FALLBACK: También buscar menciones directas de comunas (para "Itagüí", "La Candelaria", etc.)
+            # Solo si no se encontraron barrios, para evitar doble conteo
+            for comuna in self.comuna_set:
+                comuna_lower = comuna.lower()
+                # Buscar el nombre de la comuna directamente
+                direct_count = text_lower.count(comuna_lower)
+                if direct_count > 0:
+                    comuna_mentions[comuna] = comuna_mentions.get(comuna, 0) + direct_count
+                    bd = comuna_breakdown.setdefault(comuna, {})
+                    # Marcar como mención directa de comuna
+                    bd[f"({comuna})"] = bd.get(f"({comuna})", 0) + direct_count
 
         zone_risks = []
         max_current_risk = 0.0
