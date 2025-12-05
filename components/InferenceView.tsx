@@ -1,21 +1,23 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
 import { ScrapedItem } from '../types';
-import { Play, Download, Upload, FileText, AlertTriangle, CheckCircle, Activity, BarChart3 } from 'lucide-react';
+import { Play, Download, Upload, FileText, AlertTriangle, CheckCircle, Activity, BarChart3, ChevronDown } from 'lucide-react';
 import DataFrameViewer from './DataFrameViewer';
 
 interface InferenceViewProps {
     onViewDashboard?: () => void;
     onSendToDashboard?: (prediction: any) => void;
+    variant?: 'standalone' | 'embedded';
 }
 // Force recompile - added TriggerVelocity parameter support
 
-const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendToDashboard }) => {
+const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendToDashboard, variant = 'standalone' }) => {
     const [inputData, setInputData] = useState<ScrapedItem[]>([]);
     const [prediction, setPrediction] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [fileName, setFileName] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isDataFrameOpen, setIsDataFrameOpen] = useState(false);
     // Manual parameters state
     const [manualTriggerVolume, setManualTriggerVolume] = useState<number | null>(null);
     const [manualRelevanceScore, setManualRelevanceScore] = useState<number | null>(null);
@@ -140,6 +142,9 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendTo
         try {
             const result = await api.runPrediction(inputData);
             setPrediction(result);
+            if (onSendToDashboard) {
+                onSendToDashboard(result);
+            }
         } catch (error) {
             console.error("Inference failed:", error);
             setError("Inference failed. Check console for details.");
@@ -174,6 +179,9 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendTo
             };
             const result = await api.runPrediction([manualItem]);
             setPrediction(result);
+            if (onSendToDashboard) {
+                onSendToDashboard(result);
+            }
         } catch (error) {
             console.error("Manual inference failed:", error);
             setError("Manual inference failed. Check console for details.");
@@ -186,82 +194,87 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendTo
         window.open(api.getDownloadModelUrl(), '_blank');
     };
 
+    const isEmbedded = variant === 'embedded';
+
     return (
-        <div className="h-full flex flex-col p-6 bg-slate-950 overflow-y-auto custom-scrollbar">
-            <div className="mb-8 border-b border-slate-800 pb-6">
-                <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded bg-purple-500/20 flex items-center justify-center text-purple-400">
-                        <Play size={18} />
-                    </div>
-                    Inference & Deployment
-                </h2>
-                <p className="text-slate-400 text-sm mb-4">
-                    Test your trained model with new data or download it for production deployment.
-                </p>
-
-                {/* Model Info Badges */}
-                <div className="flex flex-wrap gap-2 mt-4">
-                    <div className="px-3 py-1 bg-emerald-900/20 border border-emerald-700/30 rounded-full text-xs font-bold text-emerald-400 flex items-center gap-2">
-                        <CheckCircle size={12} />
-                        Model Trained & Ready
-                    </div>
-                    <div className="px-3 py-1 bg-blue-900/20 border border-blue-700/30 rounded-full text-xs text-blue-400">
-                        Random Forest + XGBoost
-                    </div>
-                    <div className="px-3 py-1 bg-purple-900/20 border border-purple-700/30 rounded-full text-xs text-purple-400">
-                        7-Day Forecast Horizon
-                    </div>
-                </div>
-            </div>
-
-            {/* Instructions Panel */}
-            <div className="mb-6 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <FileText size={14} className="text-blue-400" /> Required CSV Format
-                </h3>
-                <div className="space-y-3">
-                    <p className="text-xs text-slate-400">
-                        Upload a CSV file with <strong className="text-slate-300">recent trigger events</strong> (last 7-14 days) to predict crime volume for the next 7 days.
+        <div className={`${isEmbedded ? 'p-0 bg-transparent' : 'p-6 bg-slate-950'} h-full flex flex-col overflow-y-auto custom-scrollbar`}>
+            {!isEmbedded && (
+                <div className="mb-8 border-b border-slate-800 pb-6">
+                    <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-purple-500/20 flex items-center justify-center text-purple-400">
+                            <Play size={18} />
+                        </div>
+                        Inference & Deployment
+                    </h2>
+                    <p className="text-slate-400 text-sm mb-4">
+                        Test your trained model with new data or download it for production deployment.
                     </p>
 
-                    <div className="bg-slate-950 border border-slate-800 rounded p-3">
-                        <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Required Columns:</div>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                                <code className="text-blue-400">Date</code>
-                                <span className="text-slate-600">-</span>
-                                <span className="text-slate-500">YYYY-MM-DD</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                                <code className="text-green-400">Type</code>
-                                <span className="text-slate-600">-</span>
-                                <span className="text-slate-500">TRIGGER_EVENT</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
-                                <code className="text-yellow-400">Headline</code>
-                                <span className="text-slate-600">-</span>
-                                <span className="text-slate-500">Event description</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                                <code className="text-purple-400">Source</code>
-                                <span className="text-slate-600">-</span>
-                                <span className="text-slate-500">Optional</span>
-                            </div>
+                    {/* Model Info Badges */}
+                    <div className="flex flex-wrap gap-2 mt-4">
+                        <div className="px-3 py-1 bg-emerald-900/20 border border-emerald-700/30 rounded-full text-xs font-bold text-emerald-400 flex items-center gap-2">
+                            <CheckCircle size={12} />
+                            Model Trained & Ready
+                        </div>
+                        <div className="px-3 py-1 bg-blue-900/20 border border-blue-700/30 rounded-full text-xs text-blue-400">
+                            Random Forest + XGBoost
+                        </div>
+                        <div className="px-3 py-1 bg-purple-900/20 border border-purple-700/30 rounded-full text-xs text-purple-400">
+                            7-Day Forecast Horizon
                         </div>
                     </div>
+                </div>
+            )}
 
-                    <div className="bg-slate-950 border border-slate-800 rounded p-3">
-                        <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Example Row:</div>
-                        <code className="text-[10px] text-slate-400 block overflow-x-auto">
-                            2024-12-01,El Tiempo,TRIGGER_EVENT,"Operativo policial en Bello",0.95,https://...
-                        </code>
+            {!isEmbedded && (
+                <div className="mb-6 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                    <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <FileText size={14} className="text-blue-400" /> Required CSV Format
+                    </h3>
+                    <div className="space-y-3">
+                        <p className="text-xs text-slate-400">
+                            Upload a CSV file with <strong className="text-slate-300">recent trigger events</strong> (last 7-14 days) to predict crime volume for the next 7 days.
+                        </p>
+
+                        <div className="bg-slate-950 border border-slate-800 rounded p-3">
+                            <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Required Columns:</div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                    <code className="text-blue-400">Date</code>
+                                    <span className="text-slate-600">-</span>
+                                    <span className="text-slate-500">YYYY-MM-DD</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                    <code className="text-green-400">Type</code>
+                                    <span className="text-slate-600">-</span>
+                                    <span className="text-slate-500">TRIGGER_EVENT</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                    <code className="text-yellow-400">Headline</code>
+                                    <span className="text-slate-600">-</span>
+                                    <span className="text-slate-500">Event description</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                                    <code className="text-purple-400">Source</code>
+                                    <span className="text-slate-600">-</span>
+                                    <span className="text-slate-500">Optional</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-950 border border-slate-800 rounded p-3">
+                            <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Example Row:</div>
+                            <code className="text-[10px] text-slate-400 block overflow-x-auto">
+                                2024-12-01,El Tiempo,TRIGGER_EVENT,"Operativo policial en Bello",0.95,https://...
+                            </code>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Input Data Summary Panel */}
             {inputData.length > 0 && (
@@ -579,50 +592,63 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendTo
                 </div>
             </div>
 
-            {/* DataFrame Sample */}
+            {/* DataFrame Sample - Collapsible */}
             {prediction && prediction.inference_data_sample && (
                 <div className="mt-8">
-                    <DataFrameViewer
-                        data={prediction.inference_data_sample}
-                        fullData={prediction.inference_data_full}
-                        title="Inference Data"
-                        description="Showing last 10 rows | Download button exports complete dataset"
-                        highlightTarget={false}
-                    />
+                    <button
+                        onClick={() => setIsDataFrameOpen(!isDataFrameOpen)}
+                        className="w-full flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl p-4 hover:bg-slate-800/50 transition-colors mb-4"
+                    >
+                        <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Inference Data</span>
+                        <ChevronDown size={16} className={`text-slate-400 transition-transform ${isDataFrameOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {isDataFrameOpen && (
+                        <div className="mb-6">
+                            <DataFrameViewer
+                                data={prediction.inference_data_sample}
+                                fullData={prediction.inference_data_full}
+                                title="Inference Data"
+                                description="Showing last 10 rows | Download button exports complete dataset"
+                                highlightTarget={false}
+                            />
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* Footer: Download & Dashboard */}
-            <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between">
-                <div className="text-xs text-slate-500">
-                    <strong className="text-slate-300">Model Artifact:</strong> sentinela_model.joblib (Random Forest / XGBoost)
-                </div>
-                <div className="flex gap-3">
-                    {onSendToDashboard && (
+            {!isEmbedded && (
+                <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between">
+                    <div className="text-xs text-slate-500">
+                        <strong className="text-slate-300">Model Artifact:</strong> sentinela_model.joblib (Random Forest / XGBoost)
+                    </div>
+                    <div className="flex gap-3">
+                        {onSendToDashboard && (
+                            <button
+                                onClick={handleSendToDashboard}
+                                disabled={!prediction}
+                                className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors border ${prediction ? 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500' : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'}`}
+                            >
+                                <BarChart3 size={14} /> SEND TO DASHBOARD
+                            </button>
+                        )}
+                        {onViewDashboard && (
+                            <button
+                                onClick={onViewDashboard}
+                                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors"
+                            >
+                                <BarChart3 size={14} /> VIEW DASHBOARD
+                            </button>
+                        )}
                         <button
-                            onClick={handleSendToDashboard}
-                            disabled={!prediction}
-                            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors border ${prediction ? 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500' : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'}`}
+                            onClick={handleDownloadModel}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors border border-slate-700"
                         >
-                            <BarChart3 size={14} /> SEND TO DASHBOARD
+                            <Download size={14} /> DOWNLOAD MODEL
                         </button>
-                    )}
-                    {onViewDashboard && (
-                        <button
-                            onClick={onViewDashboard}
-                            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors"
-                        >
-                            <BarChart3 size={14} /> VIEW DASHBOARD
-                        </button>
-                    )}
-                    <button
-                        onClick={handleDownloadModel}
-                        className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors border border-slate-700"
-                    >
-                        <Download size={14} /> DOWNLOAD MODEL
-                    </button>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };

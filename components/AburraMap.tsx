@@ -53,26 +53,34 @@ const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
     ALL_ZONES.forEach((zone) => {
       const coords = zoneCoords[zone.id] || [2, 4]; // Default to center if missing
 
-      // Find risk for this zone
-      // Match by ID or Name
-      const riskData = zoneRisks.find(zr =>
-        zr.zone === zone.name || zr.zone === zone.id || zr.zone.includes(zone.name)
-      );
+      // Find risk for this zone - match by ID, full name, or stripped name (case-insensitive)
+      const riskData = zoneRisks.find(zr => {
+        const zrZone = String(zr.zone || '').toLowerCase().trim();
+        const zoneName = String(zone.name || '').toLowerCase().trim();
+        const strippedName = zoneName.split('(')[0].trim(); // "Itagüí (General)" -> "Itagüí"
+        const zoneId = String(zone.id || '').toLowerCase().trim();
+        
+        // Match: exact ID, exact name, or backend zone matches stripped name
+        return zoneId === zrZone || zoneName === zrZone || zrZone === strippedName || zoneName.includes(zrZone);
+      });
       const riskScore = riskData ? riskData.risk : 0;
 
-      // Determine color based on risk score
-      let fillColor = "#1e293b"; // Default/Low
-      let strokeColor = "#475569";
+      // Determine color based on risk score (matches Documentation semáforo)
+      let fillColor = "#10b981"; // 0-20: Green (default)
+      let strokeColor = "#6ee7b7";
 
-      if (riskScore > 70) {
-        fillColor = "#ef4444"; // Critical (Red)
+      if (riskScore > 80) {
+        fillColor = "#ef4444"; // 81-100: Red (Critical)
         strokeColor = "#fca5a5";
-      } else if (riskScore > 30) {
-        fillColor = "#f97316"; // Elevated (Orange)
+      } else if (riskScore > 60) {
+        fillColor = "#f97316"; // 61-80: Orange (Elevated)
         strokeColor = "#fdba74";
-      } else if (riskScore > 10) {
-        fillColor = "#3b82f6"; // Low/Active (Blue)
-        strokeColor = "#93c5fd";
+      } else if (riskScore > 40) {
+        fillColor = "#fbbf24"; // 41-60: Yellow (Caution)
+        strokeColor = "#fcd34d";
+      } else if (riskScore > 20) {
+        fillColor = "#06b6d4"; // 21-40: Cyan/Blue (Active)
+        strokeColor = "#67e8f9";
       }
 
       const g = svg.append("g")
@@ -86,10 +94,10 @@ const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
         .attr("stroke-width", 2)
         .transition()
         .duration(1000)
-        .attr("r", riskScore > 30 ? 24 : 20);
+        .attr("r", riskScore > 40 ? 24 : 20);
 
-      if (riskScore > 70) {
-        // Pulse effect for critical zones
+      if (riskScore > 80) {
+        // Pulse effect for critical zones (81-100%)
         const pulse = g.append("circle")
           .attr("r", 20)
           .attr("fill", "none")
@@ -141,9 +149,11 @@ const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
         <h3 className="text-slate-400 text-sm font-semibold mb-2 uppercase tracking-wider absolute top-4 left-4">Spatial Risk Map</h3>
         <svg ref={svgRef} width={400} height={500} className="overflow-visible" />
         <div className="absolute bottom-4 left-4 flex flex-col gap-2 text-xs text-slate-500 bg-slate-950/80 p-2 rounded border border-slate-800">
-          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div> Low (10-30)</div>
-          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div> Elevated (31-70)</div>
-          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div> Critical (&gt;70)</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-emerald-500 mr-2"></div> 0-20% (Green)</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-cyan-500 mr-2"></div> 21-40% (Cyan)</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div> 41-60% (Yellow)</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div> 61-80% (Orange)</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div> 81-100% (Red)</div>
         </div>
       </div>
 
@@ -154,17 +164,26 @@ const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
           <table className="w-full text-[10px] text-slate-400">
             <tbody>
               {ALL_ZONES.map(z => {
-                const riskData = zoneRisks.find(zr => zr.zone === z.name || zr.zone === z.id || zr.zone.includes(z.name));
+                const riskData = zoneRisks.find(zr => {
+                  const zrZone = String(zr.zone || '').toLowerCase().trim();
+                  const zoneName = String(z.name || '').toLowerCase().trim();
+                  const strippedName = zoneName.split('(')[0].trim();
+                  const zoneId = String(z.id || '').toLowerCase().trim();
+                  return zoneId === zrZone || zoneName === zrZone || zrZone === strippedName || zoneName.includes(zrZone);
+                });
                 const score = riskData ? riskData.risk : 0;
+                const mentions = riskData ? (riskData.mentions || 0) : 0;
                 let rowClass = "";
-                if (score > 70) rowClass = "text-red-400 font-bold bg-red-900/10";
-                else if (score > 30) rowClass = "text-orange-400 font-bold bg-orange-900/10";
+                if (score > 80) rowClass = "text-red-400 font-bold bg-red-900/10";
+                else if (score > 60) rowClass = "text-orange-400 font-bold bg-orange-900/10";
+                else if (score > 40) rowClass = "text-yellow-400 font-bold bg-yellow-900/10";
+                else if (score > 20) rowClass = "text-cyan-400 font-bold bg-cyan-900/10";
 
                 return (
                   <tr key={z.id} className={`border-b border-slate-800 ${rowClass}`}>
                     <td className="py-1 px-1 font-mono">{z.id}</td>
                     <td className="py-1 px-1">{z.name}</td>
-                    <td className="py-1 px-1 text-right">{score > 0 ? Math.round(score) : '-'}</td>
+                    <td className="py-1 px-1 text-right">{mentions > 0 ? mentions : '-'}</td>
                   </tr>
                 );
               })}

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
+from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_squared_error
 from .models import PredictionResult, TrainingMetrics, ScrapingConfig, ModelMetadata, ScrapedItem
 
@@ -168,7 +169,8 @@ class Predictor:
         # --- 4. Multi-Model REGRESSION Training ---
         self.models = {
             "Random Forest Regressor": RandomForestRegressor(n_estimators=30, max_depth=10, random_state=42, n_jobs=-1),
-            "XGBoost Regressor": XGBRegressor(objective='reg:squarederror', n_estimators=30, random_state=42, n_jobs=-1)
+            "XGBoost Regressor": XGBRegressor(objective='reg:squarederror', n_estimators=30, random_state=42, n_jobs=-1),
+            "LightGBM Regressor": LGBMRegressor(objective='regression', n_estimators=30, random_state=42, n_jobs=-1, verbosity=-1)
         }
         results = {}
         best_mse = float('inf')
@@ -195,6 +197,14 @@ class Predictor:
         print(f"[Dashboard Híbrido] === CÁLCULO B: FULL DATASET PROJECTION ===")
         # Usar la última ventana disponible de TODO el dataset para proyección futura
         last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}', 'trigger_velocity']].iloc[-1:]
+
+        # DEBUG: imprimir la última fila de features para comparar contra inferencia
+        print("[DEBUG TRAIN] ===== FEATURE VALUES (Last Row) =====")
+        print(last_features)
+        print("[DEBUG TRAIN] triggers_last_{0}{1}={2}".format(horizon_units, suffix, last_features.iloc[0][f'triggers_last_{horizon_units}{suffix}']))
+        print("[DEBUG TRAIN] relevance_last_{0}{1}={2}".format(horizon_units, suffix, last_features.iloc[0][f'relevance_last_{horizon_units}{suffix}']))
+        print("[DEBUG TRAIN] trigger_velocity={0}".format(last_features.iloc[0]['trigger_velocity']))
+
         predicted_crime_volume = self.best_model.predict(last_features)[0]
         print(f"[Full Projection] Using last window of entire dataset -> Predicted Volume: {predicted_crime_volume:.2f}")
 
@@ -410,11 +420,14 @@ class Predictor:
                 "date": pd.to_datetime(item.date, errors='coerce'),
                 "type": item.type,
                 "relevance": item.relevance_score,
-                "text": item.headline or item.snippet or ""
+                "text": item.headline or item.snippet or "",
+                "url": getattr(item, "url", "") or ""
             }
             for item in new_items
         ])
         df.dropna(subset=['date'], inplace=True)
+        # Deduplicate exactly the same way as training (url + date) to avoid drift in sums
+        df.drop_duplicates(subset=['url', 'date'], inplace=True)
         df.sort_values('date', inplace=True)
         
         print(f"[Predictor] After date parsing: {len(df)} valid items")
@@ -469,29 +482,6 @@ class Predictor:
         
         features_df = pd.concat([daily_triggers, daily_trigger_relevance], axis=1).fillna(0)
         
-        print(f"[Predictor] === AGGREGATION CHECK ===")
-        print(f"[Predictor] Aggregated {granularity}: {len(features_df)} periods")
-        print(f"[Predictor] Last 3 periods:")
-        for idx, row in features_df.tail(3).iterrows():
-            print(f"[Predictor]   {idx}: triggers={row['trigger_count']}, relevance_sum={row['trigger_relevance_sum']:.4f}")
-        
-        # === DEBUG: Show which raw items are in the last aggregation period ===
-        if len(features_df) > 0 and len(triggers_df) > 0:
-            try:
-                last_period_start = features_df.index[-1]
-                if len(features_df) > 1:
-                    second_last_end = features_df.index[-2]
-                else:
-                    second_last_end = triggers_df['date'].min() - pd.Timedelta(days=1)
-                
-                last_period_items = triggers_df[(triggers_df['date'] > second_last_end) & (triggers_df['date'] <= last_period_start)]
-                print(f"[Predictor] === ITEMS IN LAST PERIOD ({last_period_start.date()}) ===")
-                print(f"[Predictor] Count: {len(last_period_items)}")
-                for idx, row in last_period_items.sort_values('date').iterrows():
-                    print(f"[Predictor]   {row['date'].date()}: relevance={row['relevance']:.4f}")
-            except Exception as debug_error:
-                print(f"[Predictor] DEBUG: Error in period analysis: {debug_error}")
-        
         # Dynamic Horizon Calculation - USE TRAINING VALUES FROM METADATA
         # This ensures we use the EXACT same horizon that was used during training
         horizon_days = training_metadata.get('horizon_days', 7)
@@ -524,53 +514,7 @@ class Predictor:
         print(f"[Predictor] Added trigger_velocity for inference: min={features_df['trigger_velocity'].min():.3f}, max={features_df['trigger_velocity'].max():.3f}")
 
         # Usar el último dato disponible para la predicción
-        if features_df.empty:
-            print(f"[Predictor] ERROR: Features dataframe is empty!")
-            max_observed_crimes = training_metadata.get('max_observed_crimes', 30.0)
-            max_observed_zone_activity = training_metadata.get('max_observed_zone_activity', 10.0)
-            return PredictionResult(
-                risk_score=0,
-                risk_level="LOW",
-                model_risk_score=0,
-                zone_risk_score=0,
-                predicted_volume=0,
-                expected_crime_type="Insufficient data",
-                affected_zones=[],
-                duration_days=horizon_days,
-                confidence_interval=(0.0, 10.0),
-                feature_importance=[],
-                timeline_data=[],
-                zone_risks=[],
-                training_metrics=TrainingMetrics(accuracy=0, precision=0, recall=0, f1_score=0, confusion_matrix=[], dataset_size=0, test_set_size=0),
-                model_metadata=ModelMetadata(
-                    regressors=[],
-                    targets=[],
-                    training_steps=[],
-                    model_type="Inference",
-                    granularity=granularity,
-                    horizon_days=horizon_days,
-                    horizon_units=horizon_units,
-                    horizon_suffix=suffix,
-                    max_observed_crimes=max_observed_crimes,
-                    max_observed_zone_activity=max_observed_zone_activity
-                ),
-                status="warning",
-                warning_message="Insufficient data for feature engineering."
-            )
-        
-        last_row_idx = features_df.index[-1]
-        last_features_raw = features_df.loc[[last_row_idx], 
-                                             [f'triggers_last_{horizon_units}{suffix}', 
-                                              f'relevance_last_{horizon_units}{suffix}', 
-                                              'trigger_velocity']].copy()
-        
-        # === CRITICAL FIX: Round/truncate values consistently ===
-        # This prevents floating point precision issues causing different predictions
-        last_features_raw[f'triggers_last_{horizon_units}{suffix}'] = last_features_raw[f'triggers_last_{horizon_units}{suffix}'].round(1)
-        last_features_raw[f'relevance_last_{horizon_units}{suffix}'] = last_features_raw[f'relevance_last_{horizon_units}{suffix}'].round(2)
-        last_features_raw['trigger_velocity'] = last_features_raw['trigger_velocity'].round(4)
-        
-        last_features = last_features_raw
+        last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}', 'trigger_velocity']].iloc[-1:]
 
         # OVERRIDE FEATURES WITH MANUAL PARAMETERS IF PROVIDED
         if manual_trigger_volume is not None and manual_relevance_score is not None and manual_trigger_velocity is not None:
@@ -764,11 +708,10 @@ class Predictor:
         # Normalización dinámica: (Actual / Peor_Caso_Histórico) * 100
         for zone in self.known_zones:
             count = zone_mentions.get(zone, 0)
-            if count > 0:
-                risk = min(99.0, (count / benchmark_max) * 100 if benchmark_max > 0 else 50.0)
-                zone_risks.append({"zone": zone, "risk": round(risk, 1), "mentions": int(count)})
-                if risk > max_current_risk:
-                    max_current_risk = risk
+            risk = min(99.0, (count / benchmark_max) * 100 if benchmark_max > 0 else 50.0) if count > 0 else 0.0
+            zone_risks.append({"zone": zone, "risk": round(risk, 1), "mentions": int(count)})
+            if risk > max_current_risk:
+                max_current_risk = risk
         
         # Sort by risk descending
         return sorted(zone_risks, key=lambda x: x['risk'], reverse=True), max_current_risk

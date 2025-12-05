@@ -195,12 +195,18 @@ async def run_training_task():
     global current_stage, prediction_result, current_config
     current_stage = PipelineStage.TRAINING
     add_log(PipelineStage.TRAINING, "Starting model training...")
-    print("[TRAINING] Task started", flush=True)
+    
+    # Simple logging to console without complex formatting
+    print("\n" + "="*80)
+    print("TRAINING PASO 1: ENTRENAR MODELO CON DATOS ORIGINALES")
+    print("="*80)
+    sys.stderr.flush()
+    sys.stdout.flush()
     
     try:
         # If no config exists (e.g., from CSV upload), create a default one
         if not current_config:
-            print("[TRAINING] No config found, creating default config", flush=True)
+            print("No config found, creating default", flush=True)
             current_config = ScrapingConfig(
                 target_organizations=[],
                 local_combos=[],
@@ -211,40 +217,32 @@ async def run_training_task():
                 forecast_horizon=7
             )
         
-        print(f"[TRAINING] Calling predictor.train_and_predict with {len(scraped_data)} items...", flush=True)
+        print(f"Dataset items: {len(scraped_data)}", flush=True)
         result = predictor.train_and_predict(current_config, scraped_data)
-        print(f"[TRAINING] Training completed. Result: {result is not None}", flush=True)
-        print(f"[TRAINING] Training result - Risk: {result.risk_score}, Volume: {result.predicted_volume}, Model: {result.model_risk_score}, Zone: {result.zone_risk_score}", flush=True)
+        print(f"Training Result - Risk: {result.risk_score}, Volume: {result.predicted_volume}", flush=True)
         
-        # === DEBUG: Log dataset characteristics ===
-        print(f"[TRAINING DEBUG] Dataset characteristics:")
-        print(f"[TRAINING DEBUG] Total items: {len(scraped_data)}")
-        triggers = [item for item in scraped_data if item.type == 'TRIGGER_EVENT']
-        crimes = [item for item in scraped_data if item.type == 'CRIME_STAT']
-        print(f"[TRAINING DEBUG] Triggers: {len(triggers)}, Crimes: {len(crimes)}")
-        if scraped_data:
-            dates = [item.date for item in scraped_data]
-            print(f"[TRAINING DEBUG] Date range: {min(dates)} to {max(dates)}")
-        print(f"[TRAINING DEBUG] Model name: {predictor.best_model_name}")
+        print("\n" + "="*80)
+        print("TRAINING PASO 2: ALIGNMENT - APLICAR MODELO A MISMO DATASET")
+        print("="*80)
+        sys.stderr.flush()
+        sys.stdout.flush()
         
-        # After training, apply the saved model to the ORIGINAL dataset using the SAME
-        # inference pipeline that `/api/predict` uses. This ensures DASHBOARD and INFERENCE
-        # show IDENTICAL results when using the same data.
         try:
-            print(f"[TRAINING] Starting alignment: applying inference pipeline to training dataset...", flush=True)
             aligned_result = predictor.predict_on_demand(scraped_data, current_config)
-            print(f"[TRAINING] Alignment successful. Aligned result - Risk: {aligned_result.risk_score}, Volume: {aligned_result.predicted_volume}, Model: {aligned_result.model_risk_score}, Zone: {aligned_result.zone_risk_score}", flush=True)
+            print(f"Aligned Result - Risk: {aligned_result.risk_score}, Volume: {aligned_result.predicted_volume}", flush=True)
             
-            # === DEBUG: Check if there's a discrepancy ===
+            # COMPARACIÓN
             risk_delta = abs(result.risk_score - aligned_result.risk_score)
             volume_delta = abs(result.predicted_volume - aligned_result.predicted_volume)
-            if risk_delta > 0.5 or volume_delta > 0.1:
-                print(f"[⚠️ DISCREPANCY DETECTED]", flush=True)
-                print(f"[⚠️ DISCREPANCY] Training Risk: {result.risk_score} vs Aligned Risk: {aligned_result.risk_score} (Δ={risk_delta})", flush=True)
-                print(f"[⚠️ DISCREPANCY] Training Volume: {result.predicted_volume} vs Aligned Volume: {aligned_result.predicted_volume} (Δ={volume_delta})", flush=True)
-                print(f"[⚠️ DISCREPANCY] Model Risk Training: {result.model_risk_score} vs Aligned: {aligned_result.model_risk_score}", flush=True)
-                print(f"[⚠️ DISCREPANCY] Zone Risk Training: {result.zone_risk_score} vs Aligned: {aligned_result.zone_risk_score}", flush=True)
-                print(f"[⚠️ DISCREPANCY] Dataset size: {len(scraped_data)}, Triggers: {len(triggers)}, Crimes: {len(crimes)}", flush=True)
+            
+            print("\n" + "="*80)
+            print("COMPARACIÓN: TRAINING vs ALIGNED")
+            print("="*80)
+            print(f"Risk: {result.risk_score} vs {aligned_result.risk_score} (Delta: {risk_delta:.2f})", flush=True)
+            print(f"Volume: {result.predicted_volume} vs {aligned_result.predicted_volume} (Delta: {volume_delta:.2f})", flush=True)
+            print("="*80 + "\n", flush=True)
+            sys.stderr.flush()
+            sys.stdout.flush()
             
             # Use model_dump() for Pydantic v2 compatibility
             result_dict = result.model_dump()
@@ -265,6 +263,7 @@ async def run_training_task():
                 "calculation_breakdown": aligned_result.calculation_breakdown,
                 "status": aligned_result.status,
                 "warning_message": aligned_result.warning_message,
+                "data_source": "live_inference",  # Mark as fresh inference
             })
             prediction_result = PredictionResult(**result_dict)
             print(f"[TRAINING] ✓ Dashboard NOW shows inference results on training dataset. All fields synchronized.", flush=True)
@@ -273,7 +272,9 @@ async def run_training_task():
             import traceback
             traceback.print_exc(file=__import__('sys').stderr)
             print(f"[TRAINING] Fallback: using training result directly. Risk score: {result.risk_score}", flush=True)
-            prediction_result = result
+            result_dict = result.model_dump()
+            result_dict["data_source"] = "training_fallback"  # Mark as fallback
+            prediction_result = PredictionResult(**result_dict)
         add_log(PipelineStage.TRAINING, "Training complete. Model saved.")
         # IMPORTANT: Stay in TRAINING stage so user can review results
         # User must manually click "Proceed to Inference" button

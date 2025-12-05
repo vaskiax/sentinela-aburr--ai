@@ -87,6 +87,7 @@ export interface PredictionResult {
   model_comparison?: Array<{ model: string; rmse: number }>;
   model_metadata?: ModelMetadata;
   warning_message?: string;  // Alerta si datos insuficientes
+  data_source?: string;  // 'live_inference' o 'training_fallback'
   calculation_breakdown?: Record<string, any>;  // Breakdown detallado de cálculos para audit trail
   
   // === VALIDACIÓN (Test Set Evaluation) ===

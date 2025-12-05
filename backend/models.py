@@ -121,6 +121,9 @@ class PredictionResult(BaseModel):
     status: str = 'success'
     warning_message: Optional[str] = None  # Alerta si datos insuficientes
     
+    # === DATA SOURCE TRACKING ===
+    data_source: str = 'live_inference'  # 'live_inference' si alignment exitoso, 'training_fallback' si falló
+    
     # === MUESTRAS DE DATOS (Visualización) ===
     training_data_sample: Optional[List[Dict[str, Any]]] = None
     test_data_sample: Optional[List[Dict[str, Any]]] = None

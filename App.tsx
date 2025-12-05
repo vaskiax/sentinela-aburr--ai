@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldAlert, Layout, Code, Play, RefreshCw, ChevronRight, ChevronLeft, Activity, Target, BookOpen, Database, Settings } from 'lucide-react';
+import { ShieldAlert, Play, RefreshCw, ChevronRight, Activity, Target, BookOpen, Database, Settings, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import PipelineStatus from './components/PipelineStatus';
 import ProjectArchitecture from './components/ProjectArchitecture';
 import PipelineConfig from './components/PipelineConfig';
@@ -11,7 +11,6 @@ import ModelComparison from './components/ModelComparison';
 import CleaningReport from './components/CleaningReport';
 import InferenceView from './components/InferenceView';
 import AuditTrail from './components/AuditTrail';
-import ModelValidation from './components/ModelValidation';
 import TrainingInsights from './components/TrainingInsights';
 import DataFrameViewer from './components/DataFrameViewer';
 import TrainingVisualization from './components/TrainingVisualization';
@@ -24,6 +23,7 @@ import { useEffect } from 'react';
 function App() {
   const [viewMode, setViewMode] = useState<'DASHBOARD' | 'ARCHITECTURE' | 'DOCS'>('DASHBOARD');
   const [pipelineStep, setPipelineStep] = useState<PipelineStage>('DASHBOARD');
+  const [isInferenceSectionOpen, setIsInferenceSectionOpen] = useState(false);
 
   const [scrapingConfig, setScrapingConfig] = useState<ScrapingConfig>({
     target_organizations: [],
@@ -247,12 +247,6 @@ function App() {
               />
             )}
 
-            {/* Model Validation (Test Set Evaluation) */}
-            <ModelValidation 
-              testEvaluation={result?.test_evaluation}
-              trainingMetrics={result?.training_metrics}
-            />
-
             {/* Model Comparison */}
             {result?.model_comparison && (
               <ModelComparison comparison={result.model_comparison} />
@@ -286,10 +280,10 @@ function App() {
             {/* Proceed Button */}
             <div className="flex justify-end">
               <button
-                onClick={() => setPipelineStep('INFERENCE')}
+                onClick={() => setPipelineStep('DASHBOARD')}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-blue-900/20 flex items-center gap-3 transition-all"
               >
-                Proceed to Inference / Dashboard <ChevronRight size={20} />
+                Go to Dashboard <ChevronRight size={20} />
               </button>
             </div>
           </div>
@@ -316,15 +310,9 @@ function App() {
             <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
               <div>
                 <h2 className="text-lg font-bold text-white">Dashboard Híbrido — Dual Truth Architecture</h2>
-                <p className="text-xs text-slate-400">Operational forecast + Model validation in one unified view</p>
+                <p className="text-xs text-slate-400">Operational forecast + Inline inference controls</p>
               </div>
               <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setPipelineStep('INFERENCE')} 
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2"
-                >
-                  <ChevronLeft size={14} /> Back to Inference
-                </button>
                 <button onClick={downloadReport} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-green-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2">
                   <Database size={14} /> EXPORT DATA
                 </button>
@@ -412,21 +400,17 @@ function App() {
               </div>
             </div>
 
-            {/* Middle Section: Training Insights */}
-            {result?.model_metadata && (
-              <TrainingInsights
-                metadata={result.model_metadata}
-                metrics={result.training_metrics}
-              />
-            )}
-
-            {/* Multi-Model Comparison */}
-            {result?.model_comparison && (
-              <ModelComparison comparison={result.model_comparison} />
-            )}
-
-            {result?.training_metrics && (
-              <ModelMetrics metrics={result.training_metrics} />
+            {/* === PANEL 1: DATA SOURCE WARNING (if fallback) === */}
+            {result?.data_source === 'training_fallback' && (
+              <div className="bg-amber-900/20 border-l-4 border-amber-500 p-4 rounded flex items-start gap-3">
+                <AlertTriangle className="text-amber-400 mt-0.5" size={20} />
+                <div>
+                  <p className="text-sm font-bold text-amber-300">⚠️ Fallback Mode: Datos de Validación Histórica</p>
+                  <p className="text-xs text-amber-200/70 mt-1">
+                    La alineación en tiempo real no pudo completarse. Se muestran resultados del dataset de entrenamiento. Esto puede ocurrir si hay problemas de serialización o estado inconsistente.
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* Audit Trail: Transparency in Calculations */}
@@ -434,62 +418,92 @@ function App() {
               <AuditTrail breakdown={result.calculation_breakdown} />
             )}
 
+            {/* Embedded Inference Panel: update dashboard result */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setIsInferenceSectionOpen(!isInferenceSectionOpen)}
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors"
+              >
+                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Controles de Inferencia</h3>
+                {isInferenceSectionOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+              </button>
+              {isInferenceSectionOpen && (
+                <div className="p-4 border-t border-slate-800">
+                  <InferenceView
+                    onSendToDashboard={(pred) => setResult(pred)}
+                    variant="embedded"
+                  />
+                </div>
+              )}
+            </div>
+
             {/* Bottom Section: Charts & Map */}
-            <div className="grid grid-cols-3 gap-6 min-h-[400px]">
-              <div className="col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col">
+            <div className="grid grid-cols-3 gap-6 min-h-[600px]">
+              <div className="col-span-1 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col">
                 <h3 className="text-xs font-bold text-slate-400 mb-4">RISK BY ZONE (PREDICTED)</h3>
-                <div className="flex-1 h-[500px] w-full overflow-y-auto custom-scrollbar">
+                <div className="flex-1 w-full overflow-hidden">
                   {(!result?.zone_risks || result.zone_risks.length === 0) ? (
                     <div className="flex items-center justify-center h-full text-slate-500 text-xs">
                       No zone risk data available.
                     </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={400}>
-                      <AreaChart data={result.zone_risks} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                        <defs>
-                          <linearGradient id="riskGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis
-                          dataKey="zone"
-                          stroke="#64748b"
-                          fontSize={10}
-                          tickLine={false}
-                          axisLine={false}
-                          angle={-45}
-                          textAnchor="end"
-                          height={80}
-                        />
-                        <YAxis
-                          domain={[0, 100]}
-                          stroke="#64748b"
-                          fontSize={10}
-                          tickLine={false}
-                          axisLine={false}
-                          label={{ value: 'Risk Score', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: '#64748b' } }}
-                        />
-                        <Tooltip
-                          contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }}
-                          itemStyle={{ color: '#e2e8f0' }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="risk"
-                          stroke="#ef4444"
-                          strokeWidth={2}
-                          fill="url(#riskGradient)"
-                          dot={{ fill: '#ef4444', r: 4 }}
-                          activeDot={{ r: 6 }}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  )}
+                  ) : (() => {
+                    const filteredData = result.zone_risks.filter(z => (z.mentions ?? 0) > 0);
+                    if (filteredData.length === 0) {
+                      return (
+                        <div className="flex items-center justify-center h-full text-slate-500 text-xs">
+                          No zones with mentions.
+                        </div>
+                      );
+                    }
+                    return (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={filteredData} margin={{ top: 10, right: 20, left: 0, bottom: 50 }}>
+                          <defs>
+                            <linearGradient id="riskGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                          <XAxis
+                            dataKey="zone"
+                            stroke="#64748b"
+                            fontSize={9}
+                            tickLine={false}
+                            axisLine={false}
+                            angle={-45}
+                            textAnchor="end"
+                            height={70}
+                          />
+                          <YAxis
+                            domain={[0, 100]}
+                            stroke="#64748b"
+                            fontSize={9}
+                            tickLine={false}
+                            axisLine={false}
+                            width={30}
+                            label={{ value: 'Risk %', angle: -90, position: 'insideLeft', style: { fontSize: 9, fill: '#64748b' } }}
+                          />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', fontSize: 11 }}
+                            itemStyle={{ color: '#e2e8f0' }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="risk"
+                            stroke="#ef4444"
+                            strokeWidth={2}
+                            fill="url(#riskGradient)"
+                            dot={{ fill: '#ef4444', r: 3 }}
+                            activeDot={{ r: 5 }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    );
+                  })()}
                 </div>
               </div>
-              <div className="col-span-1 h-full">
+              <div className="col-span-2 h-full">
                 <AburraMap zoneRisks={result?.zone_risks || []} />
               </div>
             </div>
@@ -564,7 +578,7 @@ function App() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pipeline Status</h3>
               <div className="space-y-2">
-                {['CONFIGURATION', 'SCRAPING', 'DATA_PREVIEW', 'TRAINING', 'INFERENCE', 'DASHBOARD'].map((step, idx) => (
+                {['CONFIGURATION', 'SCRAPING', 'DATA_PREVIEW', 'TRAINING', 'DASHBOARD'].map((step) => (
                   <div key={step} className={`flex items-center gap-3 p-2 rounded-lg text-xs font-mono border ${pipelineStep === step ? 'bg-blue-900/20 border-blue-500 text-blue-300' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
                     <div className={`w-2 h-2 rounded-full ${pipelineStep === step ? 'bg-blue-500 animate-pulse' : 'bg-slate-700'}`}></div>
                     {step}
@@ -572,8 +586,14 @@ function App() {
                 ))}
               </div>
             </div>
-            <div className="flex-1 min-h-0 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-inner">
-              <PipelineStatus logs={logs} isProcessing={pipelineStep === 'SCRAPING' || pipelineStep === 'TRAINING'} scrapeStats={scrapeStats} />
+            <div className="flex-1 min-h-0 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-inner flex flex-col">
+              <PipelineStatus 
+                logs={logs} 
+                isProcessing={pipelineStep === 'SCRAPING' || pipelineStep === 'TRAINING'} 
+                scrapeStats={scrapeStats}
+                onNavigate={(stage) => setPipelineStep(stage)}
+                currentStage={pipelineStep}
+              />
             </div>
           </div>
 

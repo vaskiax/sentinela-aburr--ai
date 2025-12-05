@@ -1,14 +1,16 @@
 import React from 'react';
-import { ProcessingLog } from '../types';
+import { ProcessingLog, PipelineStage } from '../types';
 import { Terminal, Database, Cpu, Activity, FileJson } from 'lucide-react';
 
 interface PipelineStatusProps {
   logs: ProcessingLog[];
   isProcessing: boolean;
   scrapeStats?: { counts: Record<string, number>; errors: Record<string, string> };
+  onNavigate?: (stage: PipelineStage) => void;
+  currentStage?: PipelineStage;
 }
 
-const PipelineStatus: React.FC<PipelineStatusProps> = ({ logs, isProcessing, scrapeStats }) => {
+const PipelineStatus: React.FC<PipelineStatusProps> = ({ logs, isProcessing, scrapeStats, onNavigate, currentStage }) => {
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -36,22 +38,47 @@ const PipelineStatus: React.FC<PipelineStatusProps> = ({ logs, isProcessing, scr
       
       {/* Visual Pipeline Flow */}
       <div className="flex gap-1 p-2 bg-slate-900/50 border-b border-slate-800 overflow-x-auto">
+        {/* CONFIGURATION - No clickable */}
+        <div className={`flex-1 p-2 rounded border ${currentStage === 'CONFIGURATION' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-400'} flex flex-col items-center justify-center text-[10px]`}>
+          <Database size={14} className="mb-1" />
+          <span className="text-[9px] font-bold">CONFIGURATION</span>
+        </div>
+        
+        {/* SCRAPING - No clickable */}
         <div className={`flex-1 p-2 rounded border ${getStageColor('SCRAPING')} flex flex-col items-center justify-center text-[10px]`}>
           <Database size={14} className="mb-1" />
-          <span className="text-[9px] font-bold">1. INGESTION</span>
+          <span className="text-[9px] font-bold">SCRAPING</span>
         </div>
-        <div className={`flex-1 p-2 rounded border ${getStageColor('PREPROCESSING')} flex flex-col items-center justify-center text-[10px]`}>
+        
+        {/* DATA_PREVIEW - Clickable button */}
+        <button
+          onClick={() => onNavigate && onNavigate('DATA_PREVIEW')}
+          disabled={!onNavigate || !logs.some(l => l.stage === 'DATA_PREVIEW')}
+          className={`flex-1 p-2 rounded border ${currentStage === 'DATA_PREVIEW' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : logs.some(l => l.stage === 'DATA_PREVIEW') ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-600 cursor-pointer' : 'bg-slate-900 border-slate-800 text-slate-700 cursor-not-allowed'} flex flex-col items-center justify-center text-[10px] transition-colors`}
+        >
           <FileJson size={14} className="mb-1" />
-          <span className="text-[9px] font-bold">2. CLEANING</span>
-        </div>
-        <div className={`flex-1 p-2 rounded border ${getStageColor('NLP_FEATURE_ENG')} flex flex-col items-center justify-center text-[10px]`}>
+          <span className="text-[9px] font-bold">DATA_PREVIEW</span>
+        </button>
+        
+        {/* TRAINING - Clickable button */}
+        <button
+          onClick={() => onNavigate && onNavigate('TRAINING')}
+          disabled={!onNavigate || !logs.some(l => l.stage === 'TRAINING')}
+          className={`flex-1 p-2 rounded border ${currentStage === 'TRAINING' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : logs.some(l => l.stage === 'TRAINING') ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-600 cursor-pointer' : 'bg-slate-900 border-slate-800 text-slate-700 cursor-not-allowed'} flex flex-col items-center justify-center text-[10px] transition-colors`}
+        >
           <Cpu size={14} className="mb-1" />
-          <span className="text-[9px] font-bold">3. NLP FEATS</span>
-        </div>
-        <div className={`flex-1 p-2 rounded border ${getStageColor('MODEL_INFERENCE')} flex flex-col items-center justify-center text-[10px]`}>
+          <span className="text-[9px] font-bold">TRAINING</span>
+        </button>
+        
+        {/* DASHBOARD - Clickable button (enabled if training completed) */}
+        <button
+          onClick={() => onNavigate && onNavigate('DASHBOARD')}
+          disabled={!onNavigate || !logs.some(l => l.stage === 'TRAINING')}
+          className={`flex-1 p-2 rounded border ${currentStage === 'DASHBOARD' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : logs.some(l => l.stage === 'TRAINING') ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-600 cursor-pointer' : 'bg-slate-900 border-slate-800 text-slate-700 cursor-not-allowed'} flex flex-col items-center justify-center text-[10px] transition-colors`}
+        >
           <Activity size={14} className="mb-1" />
-          <span className="text-[9px] font-bold">4. INFERENCE</span>
-        </div>
+          <span className="text-[9px] font-bold">DASHBOARD</span>
+        </button>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 font-mono text-[11px] space-y-1 bg-[#0b1120] text-slate-300">
