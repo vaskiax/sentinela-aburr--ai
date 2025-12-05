@@ -72,13 +72,23 @@ class DataLoader:
         seen = set()
         barrio_list = []
         for _, row in df.iterrows():
-            key = row['Barrio'].lower()
+            barrio = row['Barrio']
+            comuna_nombre = row['comuna_nombre']
+            comuna_numero = row['comuna_numero']
+            
+            # Skip rows with invalid/None/NaN values
+            if not barrio or barrio.lower() in ['none', 'nan', '']:
+                continue
+            if not comuna_nombre or str(comuna_nombre).lower() in ['none', 'nan', '']:
+                continue
+            
+            key = barrio.lower()
             if key in seen:
                 continue
             seen.add(key)
             barrio_list.append({
-                "barrio": row['Barrio'],
-                "comuna_nombre": row['comuna_nombre'],
-                "comuna_numero": row['comuna_numero'],
+                "barrio": barrio,
+                "comuna_nombre": comuna_nombre,
+                "comuna_numero": comuna_numero,
             })
         return barrio_list

@@ -20,7 +20,12 @@ class Predictor:
         # Load barrio → comuna index
         loader = data_loader or DataLoader()
         self.barrio_index = loader.get_barrio_index()
-        csv_comunas = sorted({b['comuna_nombre'] for b in self.barrio_index if b.get('comuna_nombre')})
+        
+        # Extract valid comunas from barrio_index, filtering out None/NaN/empty values
+        csv_comunas = sorted({
+            b['comuna_nombre'] for b in self.barrio_index 
+            if b.get('comuna_nombre') and str(b['comuna_nombre']).strip().lower() not in ['none', 'nan', '']
+        })
         
         # FALLBACK: Known zones in Valle de Aburrá (Medellín comunas + metropolitan municipalities)
         known_zones_fallback = [
@@ -34,8 +39,9 @@ class Predictor:
             "La Estrella", "Caldas", "Barbosa", "Girardota"
         ]
         
-        # Merge CSV comunas with fallback zones
+        # Merge CSV comunas with fallback zones, ensuring no invalid values
         self.comuna_set = sorted(set(csv_comunas + known_zones_fallback))
+        print(f"[Predictor] Loaded {len(csv_comunas)} comunas from barrio_index, {len(self.comuna_set)} total after merge", flush=True)
         
         self.models = {}
         self.best_model_name = "None"
@@ -817,6 +823,12 @@ class Predictor:
                 {"barrio": b, "mentions": m}
                 for b, m in sorted(comuna_breakdown.get(comuna, {}).items(), key=lambda x: x[1], reverse=True)
             ]
+            
+            # SKIP invalid zones (None, NaN, empty strings)
+            if not comuna or str(comuna).lower() in ['none', 'nan', '']:
+                print(f"[CALC] Skipping invalid zone: {repr(comuna)}", flush=True)
+                continue
+            
             zone_risks.append({
                 "zone": comuna,
                 "risk": round(risk, 1),
