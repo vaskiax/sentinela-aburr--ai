@@ -356,11 +356,32 @@ class Predictor:
         test_full['date'] = test_full.index.astype(str)
         test_data_full = test_full.reset_index(drop=True).to_dict('records')
 
+        # === GENERATE MODEL NAME WITH STRUCTURE: "winning_model_dataset_description" ===
+        # Extract model name abbreviation
+        model_abbrev = ""
+        if "Random Forest" in self.best_model_name:
+            model_abbrev = "RF"
+        elif "XGBoost" in self.best_model_name:
+            model_abbrev = "XGB"
+        elif "LightGBM" in self.best_model_name:
+            model_abbrev = "LGBM"
+        else:
+            model_abbrev = "Temporal"
+        
+        # Generate dataset identifier
+        dataset_start = model_data.index.min().strftime("%Y%m%d") if len(model_data) > 0 else "unknown"
+        dataset_granularity = granularity  # 'D', 'W', 'M'
+        dataset_size = len(model_data)  # Number of aggregated periods
+        
+        # Full model name: "ModelAbbrev_DateStart_Granularity_Size"
+        full_model_name = f"{model_abbrev}_{dataset_start}_{dataset_granularity}_{dataset_size}periods"
+        print(f"[Predictor] Generated model name: {full_model_name}")
+
         # Guardar el modelo ganador para la fase de inferencia
         try:
             os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
             joblib.dump(self.best_model, self.model_path)
-            print(f"[Predictor] Model '{self.best_model_name}' saved to {self.model_path}")
+            print(f"[Predictor] Model '{full_model_name}' saved to {self.model_path}")
             
             # Also save model metadata for inference (granularity, horizon, calibration, etc.)
             import json
@@ -370,7 +391,8 @@ class Predictor:
                 'horizon_days': horizon_days,
                 'horizon_units': horizon_units,
                 'horizon_suffix': suffix,
-                'model_name': self.best_model_name,
+                'model_name': full_model_name,  # Use the new descriptive name
+                'winning_model': self.best_model_name,  # Keep the original name for reference
                 'max_observed_crimes': max_observed_crimes,  # NUEVO: calibración del modelo
                 'max_observed_zone_activity': max_observed_zone_activity  # NUEVO: calibración de zonas
             }
@@ -418,6 +440,7 @@ class Predictor:
                     f"5. Selected {self.best_model_name} based on lowest Root Mean Squared Error (RMSE)."
                 ],
                 model_type=f"Supervised Time-Series Regression ({self.best_model_name})",
+                model_name=full_model_name,  # Add descriptive model name
                 data_period_start=str(model_data.index.min().date()),
                 data_period_end=str(model_data.index.max().date()),
                 granularity=granularity,

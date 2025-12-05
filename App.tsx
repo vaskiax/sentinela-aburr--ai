@@ -14,6 +14,7 @@ import AuditTrail from './components/AuditTrail';
 import TrainingInsights from './components/TrainingInsights';
 import DataFrameViewer from './components/DataFrameViewer';
 import TrainingVisualization from './components/TrainingVisualization';
+import ModelConfigMetadata from './components/ModelConfigMetadata';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar } from 'recharts';
 import { PredictionResult, ProcessingLog, ScrapingConfig, PipelineStage, ScrapedItem, CleaningStats } from './types';
 import { MOCK_LOGS, PROJECT_STRUCTURE, MASTER_PREDICTOR_EVENTS, MASTER_PREDICTOR_RANKS, MASTER_TARGET_CRIMES } from './constants';
@@ -88,6 +89,25 @@ function App() {
     }, 1000);
     return () => clearInterval(interval);
   }, [scrapedData.length, result, pipelineStep]);
+
+  // Load persisted model metadata on app initialization (for inferencing without training)
+  useEffect(() => {
+    const loadPersistedModel = async () => {
+      try {
+        const res = await api.getResult();
+        if (res && res.model_metadata) {
+          console.log('[Frontend] Loaded persisted model metadata from backend:', res.model_metadata.model_name);
+          setResult(res);
+          setPipelineStep('DASHBOARD');
+        }
+      } catch (e) {
+        console.log('[Frontend] No persisted model found on initialization');
+      }
+    };
+
+    // Only run once on mount
+    loadPersistedModel();
+  }, []); // Empty dependency array means this runs only once
 
   const handleStartNewAnalysis = async () => {
     console.log('[Frontend] Starting new analysis, resetting state...');
@@ -318,6 +338,9 @@ function App() {
                 </button>
               </div>
             </div>
+
+            {/* === MODEL CONFIGURATION METADATA (Persistent Section) === */}
+            <ModelConfigMetadata metadata={result?.model_metadata} />
 
             {/* === PANEL 1: OPERACIONAL (Vivid Colors) === */}
             <div className="bg-gradient-to-br from-red-950/30 to-orange-950/20 border-2 border-red-800/40 rounded-xl p-6">

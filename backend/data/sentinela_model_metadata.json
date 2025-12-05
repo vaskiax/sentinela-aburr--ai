@@ -1,1 +1,1 @@
-{"granularity": "D", "horizon_days": 7, "horizon_units": 7, "horizon_suffix": "d", "model_name": "LightGBM Regressor", "max_observed_crimes": 6.0, "max_observed_zone_activity": 5.0}
+{"granularity": "W", "horizon_days": 7, "horizon_units": 1, "horizon_suffix": "w", "model_name": "XGB_20230604_W_131periods", "winning_model": "XGBoost Regressor", "max_observed_crimes": 5.0, "max_observed_zone_activity": 12.0}

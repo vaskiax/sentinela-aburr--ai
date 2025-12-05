@@ -75,6 +75,7 @@ class ModelMetadata(BaseModel):
     targets: List[str]
     training_steps: List[str]
     model_type: str
+    model_name: Optional[str] = None  # Descriptive name: "ModelAbbrev_DateStart_Granularity_Size"
     data_period_start: Optional[str] = None
     data_period_end: Optional[str] = None
     granularity: Optional[str] = None  # 'D' | 'W' | 'M'

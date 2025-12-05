@@ -57,6 +57,7 @@ export interface ModelMetadata {
   targets: string[];
   training_steps: string[];
   model_type: string;
+  model_name?: string; // Descriptive name: "ModelAbbrev_DateStart_Granularity_Size"
   data_period_start?: string;
   data_period_end?: string;
   granularity?: string; // 'D' | 'W' | 'M'

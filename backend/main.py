@@ -299,6 +299,58 @@ async def start_training():
 
 @app.get("/api/result")
 async def get_result():
+    global prediction_result
+    
+    # If we have a cached prediction_result, return it
+    if prediction_result:
+        return prediction_result
+    
+    # Otherwise, try to load persisted model metadata
+    # This allows inferencing on page reload without retraining
+    try:
+        import json
+        model_path = os.path.join(backend_dir, "data", "sentinela_model.joblib")
+        metadata_path = model_path.replace('.joblib', '_metadata.json')
+        
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                metadata_dict = json.load(f)
+            print(f"[API] Loaded persisted model metadata: {metadata_dict.get('model_name')}")
+            
+            # Return a minimal PredictionResult with just the metadata
+            # so frontend can display model configuration
+            from models import ModelMetadata
+            model_metadata = ModelMetadata(**metadata_dict)
+            
+            # Return a stub result with metadata only (for dashboard display)
+            return {
+                "risk_score": 0,
+                "risk_level": "UNKNOWN",
+                "model_risk_score": 0,
+                "zone_risk_score": 0,
+                "predicted_volume": 0,
+                "expected_crime_type": "No inference data",
+                "affected_zones": [],
+                "duration_days": 0,
+                "confidence_interval": [0, 0],
+                "feature_importance": [],
+                "timeline_data": [],
+                "zone_risks": [],
+                "training_metrics": {
+                    "accuracy": 0,
+                    "precision": 0,
+                    "recall": 0,
+                    "f1_score": 0,
+                    "confusion_matrix": [],
+                    "dataset_size": 0
+                },
+                "model_metadata": model_metadata.model_dump(),
+                "warning_message": "No inference data available. Model loaded from storage.",
+                "data_source": "persisted_model"
+            }
+    except Exception as e:
+        print(f"[API] Error loading persisted metadata: {e}")
+    
     return prediction_result
 
 @app.get("/api/nlp-status")
