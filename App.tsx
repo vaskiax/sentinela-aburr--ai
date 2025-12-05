@@ -11,10 +11,7 @@ import ModelComparison from './components/ModelComparison';
 import CleaningReport from './components/CleaningReport';
 import InferenceView from './components/InferenceView';
 import AuditTrail from './components/AuditTrail';
-// ... (existing imports)
-
-// ... (inside renderContent function, DASHBOARD case)
-
+import ModelValidation from './components/ModelValidation';
 import TrainingInsights from './components/TrainingInsights';
 import DataFrameViewer from './components/DataFrameViewer';
 import TrainingVisualization from './components/TrainingVisualization';
@@ -250,6 +247,12 @@ function App() {
               />
             )}
 
+            {/* Model Validation (Test Set Evaluation) */}
+            <ModelValidation 
+              testEvaluation={result?.test_evaluation}
+              trainingMetrics={result?.training_metrics}
+            />
+
             {/* Model Comparison */}
             {result?.model_comparison && (
               <ModelComparison comparison={result.model_comparison} />
@@ -312,8 +315,8 @@ function App() {
             {/* Header */}
             <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
               <div>
-                <h2 className="text-lg font-bold text-white">Operational Dashboard</h2>
-                <p className="text-xs text-slate-400">Real-time risk assessment based on historical & current intelligence.</p>
+                <h2 className="text-lg font-bold text-white">Dashboard Híbrido — Dual Truth Architecture</h2>
+                <p className="text-xs text-slate-400">Operational forecast + Model validation in one unified view</p>
               </div>
               <div className="flex items-center gap-2">
                 <button 
@@ -328,59 +331,88 @@ function App() {
               </div>
             </div>
 
-            {/* Top KPI Cards */}
-            <div className="grid grid-cols-4 gap-4">
-              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg relative overflow-hidden">
-                <p className="text-[10px] text-slate-500 font-mono mb-2 uppercase font-bold">Violence Risk Index</p>
-                <div className={`text-5xl font-black mb-2 ${result?.risk_level === 'CRITICAL' ? 'text-red-500' :
-                  result?.risk_level === 'HIGH' ? 'text-orange-500' :
-                    result?.risk_level === 'ELEVATED' ? 'text-yellow-500' :
-                      result?.risk_level === 'MODERATE' ? 'text-blue-500' : 'text-green-500'
-                  }`}>
-                  {result?.risk_score ?? '--'}
+            {/* === PANEL 1: OPERACIONAL (Vivid Colors) === */}
+            <div className="bg-gradient-to-br from-red-950/30 to-orange-950/20 border-2 border-red-800/40 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-lg bg-red-600/30 flex items-center justify-center">
+                  <Target size={20} className="text-red-400" />
                 </div>
-                <div className={`text-sm font-bold mb-3 ${result?.risk_level === 'CRITICAL' ? 'text-red-400' :
-                  result?.risk_level === 'HIGH' ? 'text-orange-400' :
-                    result?.risk_level === 'ELEVATED' ? 'text-yellow-400' :
-                      result?.risk_level === 'MODERATE' ? 'text-blue-400' : 'text-green-400'
-                  }`}>
-                  {result?.risk_level ? result.risk_level : '--'}
-                </div>
-                {/* Desglose */}
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Model Risk:</span>
-                    <span className="font-bold text-blue-400">{result?.model_risk_score ?? '--'}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Zone Activity:</span>
-                    <span className="font-bold text-purple-400">{result?.zone_risk_score ?? '--'}</span>
-                  </div>
+                <div>
+                  <h3 className="text-lg font-bold text-red-300 uppercase tracking-wider">
+                    Current Threat Assessment (Forecast)
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    Forward-looking prediction using full dataset
+                  </p>
                 </div>
               </div>
-              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg col-span-2">
-                <p className="text-[10px] text-slate-500 font-mono mb-1 uppercase">Predicted Crime Volume</p>
-                <div className="text-2xl font-bold text-white mt-1">{result?.expected_crime_type ?? 'No data'}</div>
-                <div className="flex gap-2 mt-2">
-                  {result?.affected_zones?.slice(0, 4).map(z => (
-                    <span key={z} className="text-[10px] px-2 py-0.5 bg-slate-800 text-slate-300 rounded border border-slate-700">{z}</span>
-                  ))}
-                  {(result?.affected_zones?.length ?? 0) > 4 && <span className="text-[10px] px-2 py-0.5 text-slate-500">+{(result?.affected_zones?.length ?? 0) - 4} more</span>}
+
+              {/* Top KPI Cards */}
+              <div className="grid grid-cols-4 gap-4 mb-4">
+                <div className="bg-slate-900/70 border border-red-700/30 p-4 rounded-xl shadow-lg relative overflow-hidden">
+                  <p className="text-[10px] text-slate-500 font-mono mb-2 uppercase font-bold">Violence Risk Index</p>
+                  <div className={`text-5xl font-black mb-2 ${result?.risk_level === 'CRITICAL' ? 'text-red-500' :
+                    result?.risk_level === 'HIGH' ? 'text-orange-500' :
+                      result?.risk_level === 'ELEVATED' ? 'text-yellow-500' :
+                        result?.risk_level === 'MODERATE' ? 'text-blue-500' : 'text-green-500'
+                    }`}>
+                    {result?.risk_score ?? '--'}
+                  </div>
+                  <div className={`text-sm font-bold mb-3 ${result?.risk_level === 'CRITICAL' ? 'text-red-400' :
+                    result?.risk_level === 'HIGH' ? 'text-orange-400' :
+                      result?.risk_level === 'ELEVATED' ? 'text-yellow-400' :
+                        result?.risk_level === 'MODERATE' ? 'text-blue-400' : 'text-green-400'
+                    }`}>
+                    {result?.risk_level ? result.risk_level : '--'}
+                  </div>
+                  {/* Desglose */}
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Model Risk:</span>
+                      <span className="font-bold text-blue-400">{result?.model_risk_score ?? '--'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Zone Activity:</span>
+                      <span className="font-bold text-purple-400">{result?.zone_risk_score ?? '--'}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg">
-                <p className="text-[10px] text-slate-500 font-mono mb-1 uppercase">Forecast Duration</p>
-                <div className="text-4xl font-bold text-white">
-                  {result?.model_metadata?.horizon_units ?? result?.duration_days ?? '--'}
-                  <span className="text-sm font-normal text-slate-500 ml-1">
-                    {result?.model_metadata?.horizon_suffix === 'm' ? 'Months' :
-                      result?.model_metadata?.horizon_suffix === 'w' ? 'Weeks' : 'Days'}
-                  </span>
+                <div className="bg-slate-900/70 border border-red-700/30 p-4 rounded-xl shadow-lg col-span-2">
+                  <p className="text-[10px] text-slate-500 font-mono mb-1 uppercase">Predicted Crime Volume</p>
+                  <div className="text-2xl font-bold text-white mt-1">{result?.expected_crime_type ?? 'No data'}</div>
+                  <div className="flex gap-2 mt-2">
+                    {result?.affected_zones?.slice(0, 4).map(z => (
+                      <span key={z} className="text-[10px] px-2 py-0.5 bg-red-900/30 text-red-300 rounded border border-red-700/30">{z}</span>
+                    ))}
+                    {(result?.affected_zones?.length ?? 0) > 4 && <span className="text-[10px] px-2 py-0.5 text-slate-500">+{(result?.affected_zones?.length ?? 0) - 4} more</span>}
+                  </div>
+                </div>
+                <div className="bg-slate-900/70 border border-red-700/30 p-4 rounded-xl shadow-lg">
+                  <p className="text-[10px] text-slate-500 font-mono mb-1 uppercase">Forecast Window</p>
+                  <div className="flex flex-col gap-2 mt-2">
+                    <div>
+                      <p className="text-xs text-slate-400">Rolling Horizon (lookback):</p>
+                      <div className="text-3xl font-bold text-white">
+                        {result?.model_metadata?.horizon_days ?? result?.duration_days ?? '--'}
+                        <span className="text-sm font-normal text-slate-500 ml-1">days</span>
+                      </div>
+                    </div>
+                    <div className="border-t border-red-700/20 pt-2">
+                      <p className="text-xs text-slate-400">Aggregation Granularity:</p>
+                      <div className="text-xl font-bold text-red-300">
+                        {result?.model_metadata?.horizon_units ?? '--'}
+                        <span className="text-sm font-normal text-slate-500 ml-1">
+                          {result?.model_metadata?.horizon_suffix === 'm' ? 'Month(s)' :
+                            result?.model_metadata?.horizon_suffix === 'w' ? 'Week(s)' : 'Day(s)'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Middle Section: Training Metrics & Confusion Matrix */}
+            {/* Middle Section: Training Insights */}
             {result?.model_metadata && (
               <TrainingInsights
                 metadata={result.model_metadata}
@@ -388,7 +420,7 @@ function App() {
               />
             )}
 
-            {/* New Multi-Model Comparison Section */}
+            {/* Multi-Model Comparison */}
             {result?.model_comparison && (
               <ModelComparison comparison={result.model_comparison} />
             )}

@@ -86,7 +86,9 @@ class ModelMetadata(BaseModel):
     max_observed_zone_activity: Optional[float] = 10.0  # Máxima actividad de zona en historia
 
 class PredictionResult(BaseModel):
-    risk_score: float  # MAX(model_risk, zone_risk)
+    # === PREDICCIÓN ACTUAL (Inferencia - Futuro) ===
+    # Estos campos representan la proyección operativa usando TODO el dataset
+    risk_score: float  # Weighted: 0.7*model_risk + 0.3*zone_risk
     risk_level: str  # 'LOW', 'MODERATE', 'ELEVATED', 'HIGH', 'CRITICAL'
     model_risk_score: float  # Desglose: Riesgo del modelo (0-100, normalizado)
     zone_risk_score: float  # Desglose: Riesgo de zona (0-100, normalizado)
@@ -95,15 +97,31 @@ class PredictionResult(BaseModel):
     affected_zones: List[str]
     duration_days: int
     confidence_interval: Tuple[float, float]
-    feature_importance: List[Dict[str, Any]] # { feature: string; importance: number }
-    timeline_data: List[Dict[str, Any]] # { day: string; risk_score: number }
-    zone_risks: List[Dict[str, Any]] # { zone: string; risk: number }
-    training_metrics: TrainingMetrics
-    model_comparison: Optional[List[Dict[str, Any]]] = None # [{ model: "RF", f1: 0.8, acc: 0.85 }, ...]
+    
+    # === VALIDACIÓN DEL MODELO (Test Set Evaluation) ===
+    # Estos campos representan el desempeño del modelo en datos históricos NO vistos (20% Test)
+    test_evaluation: Optional[Dict[str, Any]] = None  # {
+    #   "test_risk_score": float,           # Risk calculado en último punto del test set
+    #   "test_predicted_volume": float,     # Volumen predicho en test set
+    #   "test_actual_volume": float,        # Volumen real en test set (si disponible)
+    #   "test_risk_level": str,             # Nivel de riesgo en test
+    #   "test_model_risk": float,           # Desglose modelo en test
+    #   "test_zone_risk": float             # Desglose zona en test
+    # }
+    
+    # === MÉTRICAS TÉCNICAS ===
+    training_metrics: TrainingMetrics  # RMSE, Accuracy, Dataset Size
+    model_comparison: Optional[List[Dict[str, Any]]] = None  # Multi-model comparison
+    feature_importance: List[Dict[str, Any]]  # { feature: string; importance: number }
+    timeline_data: List[Dict[str, Any]]  # { day: string; risk_score: number }
+    zone_risks: List[Dict[str, Any]]  # { zone: string; risk: number }
     model_metadata: Optional[ModelMetadata] = None
+    
+    # === ESTADO Y ALERTAS ===
     status: str = 'success'
     warning_message: Optional[str] = None  # Alerta si datos insuficientes
-    # DataFrame samples for visualization (10 rows)
+    
+    # === MUESTRAS DE DATOS (Visualización) ===
     training_data_sample: Optional[List[Dict[str, Any]]] = None
     test_data_sample: Optional[List[Dict[str, Any]]] = None
     inference_data_sample: Optional[List[Dict[str, Any]]] = None
@@ -111,8 +129,9 @@ class PredictionResult(BaseModel):
     training_data_full: Optional[List[Dict[str, Any]]] = None
     test_data_full: Optional[List[Dict[str, Any]]] = None
     inference_data_full: Optional[List[Dict[str, Any]]] = None
-    # Audit trail: Breakdown of calculation for transparency
-    calculation_breakdown: Optional[Dict[str, Any]] = None  # Contains raw values: raw_predicted_volume, historical_max_volume, current_zone_mentions, etc.
+    
+    # === AUDITORÍA Y TRANSPARENCIA ===
+    calculation_breakdown: Optional[Dict[str, Any]] = None  # Desglose matemático completo
 
 class ProcessingLog(BaseModel):
     id: int

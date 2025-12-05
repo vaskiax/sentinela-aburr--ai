@@ -28,31 +28,31 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ breakdown }) => {
         return String(value);
     };
 
-    // Group breakdown into logical sections
+    // Group breakdown into logical sections with PASO 3: Auditoría completa
     const sections = [
         {
-            title: 'Model Risk Calculation',
+            title: 'Model Risk Calculation (70% Weight)',
             items: [
-                { label: 'Raw Predicted Volume', key: 'raw_predicted_volume' },
-                { label: 'Historical Max Volume', key: 'historical_max_volume' },
-                { label: 'Formula', key: 'model_risk_formula' },
+                { label: 'Raw Predicted Volume (X)', key: 'raw_predicted_volume' },
+                { label: 'Historical Max Volume (Y)', key: 'historical_max_volume' },
+                { label: 'Formula: (X / Y) × 100', key: 'model_risk_formula', isFormula: true },
                 { label: 'Model Risk Score', key: 'model_risk_score', highlight: true }
             ]
         },
         {
-            title: 'Zone Risk Calculation',
+            title: 'Zone Risk Calculation (30% Weight)',
             items: [
-                { label: 'Historical Max Zone Mentions', key: 'historical_max_zone_mentions' },
-                { label: 'Current Zone Mentions', key: 'zone_risk_current_mentions' },
-                { label: 'Formula', key: 'zone_risk_formula' },
+                { label: 'Historical Max Zone Mentions (B)', key: 'historical_max_zone_mentions' },
+                { label: 'Current Zone Mentions (A)', key: 'zone_risk_current_mentions' },
+                { label: 'Formula: (A / B) × 100', key: 'zone_risk_formula', isFormula: true },
                 { label: 'Zone Risk Score', key: 'zone_risk_score', highlight: true }
             ]
         },
         {
-            title: 'Final Risk Score',
+            title: 'Final Risk Score (Weighted Average)',
             items: [
-                { label: 'Risk Calculation', key: 'risk_calculation' },
-                { label: 'Final Score', key: 'final_risk_score', highlight: true }
+                { label: 'Weighting Formula', key: 'risk_calculation', isFormula: true },
+                { label: 'Final Risk Score: 0.7×Model + 0.3×Zone', key: 'final_risk_score', highlight: true }
             ]
         }
     ];
@@ -92,14 +92,14 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ breakdown }) => {
                                     return (
                                         <div
                                             key={item.key}
-                                            className={`flex justify-between items-center py-2 px-3 rounded text-xs font-mono ${
+                                            className={`flex justify-between items-start py-2 px-3 rounded text-xs font-mono ${
                                                 item.highlight
                                                     ? 'bg-blue-900/20 border border-blue-700/40'
-                                                    : 'bg-slate-950/50'
+                                                    : (item as any).isFormula ? 'bg-purple-900/10 border border-purple-700/20' : 'bg-slate-950/50'
                                             }`}
                                         >
-                                            <span className="text-slate-400">{item.label}</span>
-                                            <span className={item.highlight ? 'text-blue-300 font-bold' : 'text-slate-300'}>
+                                            <span className="text-slate-400 flex-shrink-0">{item.label}</span>
+                                            <span className={`text-right flex-1 ml-4 break-words ${item.highlight ? 'text-blue-300 font-bold' : (item as any).isFormula ? 'text-purple-300' : 'text-slate-300'}`}>
                                                 {value !== undefined && value !== null ? formatValue(value) : 'N/A'}
                                             </span>
                                         </div>
@@ -118,10 +118,15 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ breakdown }) => {
                         </div>
                     )}
 
-                    {/* Legend */}
-                    <div className="pt-3 border-t border-slate-800 text-[10px] text-slate-500 space-y-1">
-                        <p>📊 All calculations use historical benchmarks for normalization</p>
-                        <p>✓ Risk scores are capped at 99.0% to allow room for escalation</p>
+                    {/* Legend with 70/30 weighting explanation */}
+                    <div className="pt-3 border-t border-slate-800 space-y-2">
+                        <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">📋 Weighting Scheme</h5>
+                        <div className="space-y-1 text-[10px] text-slate-400 ml-2">
+                            <p>• <span className="text-blue-300 font-bold">70%</span> from Model Risk (Predicted crime volume normalized)</p>
+                            <p>• <span className="text-purple-300 font-bold">30%</span> from Zone Activity (Current zone mentions normalized)</p>
+                            <p>• <span className="font-mono text-emerald-300">Formula: 0.7 × Model + 0.3 × Zone</span></p>
+                        </div>
+                        <p className="text-[10px] text-slate-500 italic mt-2">📊 All calculations use historical benchmarks for normalization to avoid artificial inflation</p>
                     </div>
                 </div>
             )}

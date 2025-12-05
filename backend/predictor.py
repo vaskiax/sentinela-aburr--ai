@@ -132,6 +132,11 @@ class Predictor:
             horizon_units = max(1, round(horizon_days / 7))
             suffix = 'w'
         
+        # PASO 4: Log explícito de validación de granularidad
+        approx_days = horizon_units * (7 if granularity=='W' else (30 if granularity=='M' else 1))
+        print(f"[Horizon Logic] Config Days: {horizon_days} | Granularity: {granularity} -> Converted to {horizon_units} units of {suffix} ({approx_days} days approx)")
+        print(f"[Horizon Logic] Lookup window: Last {horizon_units} {suffix} of triggers will predict next {horizon_units} {suffix} of crimes")
+        
         # Features (X): Sum of triggers in the PAST X units
         features_df[f'triggers_last_{horizon_units}{suffix}'] = features_df['trigger_count'].rolling(window=horizon_units, min_periods=1).sum()
         features_df[f'relevance_last_{horizon_units}{suffix}'] = features_df['trigger_relevance_sum'].rolling(window=horizon_units, min_periods=1).sum()
@@ -178,9 +183,20 @@ class Predictor:
                 self.best_model = model
             results[name] = {"mse": mse, "rmse": np.sqrt(mse)}
 
-        # --- 5. Prediction & Output Generation ---
+        # --- 5A. CÁLCULO A: Evaluación en Test Set (Validación) ---
+        print(f"[Dashboard Híbrido] === CÁLCULO A: TEST SET EVALUATION ===")
+        # Predecir sobre el último punto del Test Set para validación
+        test_features_last = X_test.iloc[-1:]  # Última ventana del test
+        test_predicted_volume = self.best_model.predict(test_features_last)[0]
+        test_actual_volume = y_test.iloc[-1] if len(y_test) > 0 else None
+        print(f"[Test Eval] Predicted: {test_predicted_volume:.2f}, Actual: {test_actual_volume if test_actual_volume is not None else 'N/A'}")
+        
+        # --- 5B. CÁLCULO B: Proyección Operativa (Todo el Dataset) ---
+        print(f"[Dashboard Híbrido] === CÁLCULO B: FULL DATASET PROJECTION ===")
+        # Usar la última ventana disponible de TODO el dataset para proyección futura
         last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}', 'trigger_velocity']].iloc[-1:]
         predicted_crime_volume = self.best_model.predict(last_features)[0]
+        print(f"[Full Projection] Using last window of entire dataset -> Predicted Volume: {predicted_crime_volume:.2f}")
 
         # --- NUEVO: CALIBRACIÓN DINÁMICA ---
         # 1. Máximo Volumen del Modelo (Target Y histórico)
@@ -202,6 +218,27 @@ class Predictor:
         # C. Riesgo Global (Promedio Ponderado: 70% Modelo + 30% Zona)
         final_risk_score = (model_risk * 0.7) + (max_zone_risk * 0.3)
         print(f"[CALC] Final Risk Score = (70% × {model_risk:.1f}) + (30% × {max_zone_risk:.1f}) = {final_risk_score:.1f}%")
+        
+        # --- CÁLCULO A: Test Evaluation Metrics ---
+        # Calcular riesgo en test set usando el volumen predicho en test
+        test_model_risk = min(99.0, (test_predicted_volume / max_observed_crimes) * 100 if max_observed_crimes > 0 else 50.0)
+        # Para test, no tenemos contexto temporal completo para zone_risk, usamos el actual
+        test_zone_risk = max_zone_risk  # Proxy: mismo contexto zonal
+        test_risk_score = (test_model_risk * 0.7) + (test_zone_risk * 0.3)
+        test_risk_level = self._calculate_risk_level(test_risk_score)
+        print(f"[Test Eval] Test Risk Score = (70% × {test_model_risk:.1f}) + (30% × {test_zone_risk:.1f}) = {test_risk_score:.1f}% [{test_risk_level}]")
+        
+        # Empaquetar evaluación del test set
+        test_evaluation = {
+            "test_risk_score": round(float(test_risk_score), 1),
+            "test_predicted_volume": round(float(test_predicted_volume), 2),
+            "test_actual_volume": round(float(test_actual_volume), 2) if test_actual_volume is not None else None,
+            "test_risk_level": test_risk_level,
+            "test_model_risk": round(float(test_model_risk), 1),
+            "test_zone_risk": round(float(test_zone_risk), 1),
+            "rmse": round(float(results[self.best_model_name]['rmse']), 2),
+            "note": "Calculated on last point of 20% test set (unseen data during training)"
+        }
 
         full_series_predictions = self.best_model.predict(X)
         timeline_data = [{"day": str(date.date()), "risk_score": int(round(min(99, (pred / max_observed_crimes) * 100 if max_observed_crimes > 0 else 50)))}
@@ -256,15 +293,21 @@ class Predictor:
             print(f"[Predictor] Warning: Failed to save model: {e}")
 
         return PredictionResult(
+            # === PREDICCIÓN ACTUAL (Proyección Operativa - Todo el Dataset) ===
             risk_score=round(float(final_risk_score), 1),
             risk_level=self._calculate_risk_level(final_risk_score),
-            model_risk_score=round(float(model_risk), 1),  # NUEVO: desglose del riesgo del modelo
-            zone_risk_score=round(float(max_zone_risk), 1),  # NUEVO: desglose del riesgo de zona
-            predicted_volume=round(float(predicted_crime_volume), 2),  # Volumen predicho en test set
+            model_risk_score=round(float(model_risk), 1),
+            zone_risk_score=round(float(max_zone_risk), 1),
+            predicted_volume=round(float(predicted_crime_volume), 2),  # Volumen proyectado FUTURO
             expected_crime_type=f"Volume: {round(float(predicted_crime_volume), 1)} incidents",
             affected_zones=self._extract_recent_zones(df),
             duration_days=int(horizon_days),
             confidence_interval=(float(max(0, final_risk_score - 10)), float(min(100, final_risk_score + 10))),
+            
+            # === VALIDACIÓN DEL MODELO (Test Set Evaluation) ===
+            test_evaluation=test_evaluation,
+            
+            # === MÉTRICAS TÉCNICAS ===
             feature_importance=[{"feature": name, "importance": int(round(imp * 100))} for name, imp in zip(X.columns, self.best_model.feature_importances_)],
             timeline_data=timeline_data,
             zone_risks=zone_risks,
@@ -293,8 +336,8 @@ class Predictor:
                 horizon_days=horizon_days,
                 horizon_units=horizon_units,
                 horizon_suffix=suffix,
-                max_observed_crimes=max_observed_crimes,  # NUEVO: calibración
-                max_observed_zone_activity=max_observed_zone_activity  # NUEVO: calibración
+                max_observed_crimes=max_observed_crimes,
+                max_observed_zone_activity=max_observed_zone_activity
             ),
             training_data_sample=training_data_sample,
             test_data_sample=test_data_sample,
@@ -426,6 +469,29 @@ class Predictor:
         
         features_df = pd.concat([daily_triggers, daily_trigger_relevance], axis=1).fillna(0)
         
+        print(f"[Predictor] === AGGREGATION CHECK ===")
+        print(f"[Predictor] Aggregated {granularity}: {len(features_df)} periods")
+        print(f"[Predictor] Last 3 periods:")
+        for idx, row in features_df.tail(3).iterrows():
+            print(f"[Predictor]   {idx}: triggers={row['trigger_count']}, relevance_sum={row['trigger_relevance_sum']:.4f}")
+        
+        # === DEBUG: Show which raw items are in the last aggregation period ===
+        if len(features_df) > 0 and len(triggers_df) > 0:
+            try:
+                last_period_start = features_df.index[-1]
+                if len(features_df) > 1:
+                    second_last_end = features_df.index[-2]
+                else:
+                    second_last_end = triggers_df['date'].min() - pd.Timedelta(days=1)
+                
+                last_period_items = triggers_df[(triggers_df['date'] > second_last_end) & (triggers_df['date'] <= last_period_start)]
+                print(f"[Predictor] === ITEMS IN LAST PERIOD ({last_period_start.date()}) ===")
+                print(f"[Predictor] Count: {len(last_period_items)}")
+                for idx, row in last_period_items.sort_values('date').iterrows():
+                    print(f"[Predictor]   {row['date'].date()}: relevance={row['relevance']:.4f}")
+            except Exception as debug_error:
+                print(f"[Predictor] DEBUG: Error in period analysis: {debug_error}")
+        
         # Dynamic Horizon Calculation - USE TRAINING VALUES FROM METADATA
         # This ensures we use the EXACT same horizon that was used during training
         horizon_days = training_metadata.get('horizon_days', 7)
@@ -459,10 +525,10 @@ class Predictor:
 
         # Usar el último dato disponible para la predicción
         if features_df.empty:
-             print(f"[Predictor] ERROR: Features dataframe is empty after engineering!")
-             max_observed_crimes = training_metadata.get('max_observed_crimes', 30.0)
-             max_observed_zone_activity = training_metadata.get('max_observed_zone_activity', 10.0)
-             return PredictionResult(
+            print(f"[Predictor] ERROR: Features dataframe is empty!")
+            max_observed_crimes = training_metadata.get('max_observed_crimes', 30.0)
+            max_observed_zone_activity = training_metadata.get('max_observed_zone_activity', 10.0)
+            return PredictionResult(
                 risk_score=0,
                 risk_level="LOW",
                 model_risk_score=0,
@@ -491,6 +557,20 @@ class Predictor:
                 status="warning",
                 warning_message="Insufficient data for feature engineering."
             )
+        
+        last_row_idx = features_df.index[-1]
+        last_features_raw = features_df.loc[[last_row_idx], 
+                                             [f'triggers_last_{horizon_units}{suffix}', 
+                                              f'relevance_last_{horizon_units}{suffix}', 
+                                              'trigger_velocity']].copy()
+        
+        # === CRITICAL FIX: Round/truncate values consistently ===
+        # This prevents floating point precision issues causing different predictions
+        last_features_raw[f'triggers_last_{horizon_units}{suffix}'] = last_features_raw[f'triggers_last_{horizon_units}{suffix}'].round(1)
+        last_features_raw[f'relevance_last_{horizon_units}{suffix}'] = last_features_raw[f'relevance_last_{horizon_units}{suffix}'].round(2)
+        last_features_raw['trigger_velocity'] = last_features_raw['trigger_velocity'].round(4)
+        
+        last_features = last_features_raw
 
         # OVERRIDE FEATURES WITH MANUAL PARAMETERS IF PROVIDED
         if manual_trigger_volume is not None and manual_relevance_score is not None and manual_trigger_velocity is not None:
@@ -505,11 +585,14 @@ class Predictor:
             print(f"[Predictor] triggers_last_{horizon_units}{suffix}: {float(manual_trigger_volume)}")
             print(f"[Predictor] relevance_last_{horizon_units}{suffix}: {float(manual_relevance_score)}")
             print(f"[Predictor] trigger_velocity: {float(manual_trigger_velocity)} (manual input)")
-        else:
-            # Use calculated features from DataFrame (including trigger_velocity)
-            last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}', 'trigger_velocity']].iloc[-1:]
         
         # DEBUG: Print feature values before prediction
+        # Print raw trigger data for last period
+        print(f"[Predictor] === RAW TRIGGERS (Last {horizon_units} {suffix}) ===")
+        last_period_triggers = triggers_df[triggers_df['date'] >= (triggers_df['date'].max() - pd.Timedelta(days=max(horizon_days, 30)))]
+        for _, row in last_period_triggers.sort_values('date', ascending=False).head(10).iterrows():
+            print(f"[Predictor]   {row['date'].date()}: relevance={row['relevance']:.2f}")
+        
         print(f"[Predictor] ===== FEATURE VALUES (Last Row) =====")
         print(f"[Predictor] triggers_last_{horizon_units}{suffix}: {last_features.iloc[0][f'triggers_last_{horizon_units}{suffix}']}")
         print(f"[Predictor] relevance_last_{horizon_units}{suffix}: {last_features.iloc[0][f'relevance_last_{horizon_units}{suffix}']}")

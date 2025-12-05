@@ -69,10 +69,12 @@ export interface ModelMetadata {
 }
 
 export interface PredictionResult {
+  // === PREDICCIÓN OPERACIONAL (Operational Forecast) ===
+  // Campos raíz = predicción hacia adelante usando dataset completo
   risk_score: number;
   risk_level: string;  // 'LOW', 'MODERATE', 'ELEVATED', 'HIGH', 'CRITICAL'
-  model_risk_score: number;  // NUEVO: desglose del riesgo del modelo
-  zone_risk_score: number;  // NUEVO: desglose del riesgo de zona
+  model_risk_score: number;  // Desglose del riesgo del modelo
+  zone_risk_score: number;  // Desglose del riesgo de zona
   predicted_volume: number;  // Volumen de crímenes proyectado
   expected_crime_type: string;
   affected_zones: string[];
@@ -84,8 +86,22 @@ export interface PredictionResult {
   training_metrics: TrainingMetrics;
   model_comparison?: Array<{ model: string; rmse: number }>;
   model_metadata?: ModelMetadata;
-  warning_message?: string;  // NUEVO: alerta si datos insuficientes
-  calculation_breakdown?: Record<string, any>;  // NUEVO: breakdown detallado de cálculos para audit trail
+  warning_message?: string;  // Alerta si datos insuficientes
+  calculation_breakdown?: Record<string, any>;  // Breakdown detallado de cálculos para audit trail
+  
+  // === VALIDACIÓN (Test Set Evaluation) ===
+  // Evaluación en conjunto de prueba (20% datos históricos no vistos)
+  // Propósito: Medir precisión del modelo vs. predicción operacional
+  test_evaluation?: {
+    test_risk_score: number;          // Risk score calculado en test set
+    test_predicted_volume: number;    // Volumen predicho en test set
+    test_actual_volume: number | null; // Volumen real en test set (si disponible)
+    test_risk_level: string;          // Nivel de riesgo en test set
+    test_model_risk: number;          // Model risk en test set
+    test_zone_risk: number;           // Zone risk en test set
+    rmse: number;                     // Error cuadrático medio
+    note: string;                     // Descripción del test evaluation
+  };
 }
 
 export interface ProcessingLog {
