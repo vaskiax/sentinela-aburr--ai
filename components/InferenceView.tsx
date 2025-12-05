@@ -7,6 +7,7 @@ import DataFrameViewer from './DataFrameViewer';
 interface InferenceViewProps {
     onViewDashboard?: () => void;
 }
+// Force recompile - added TriggerVelocity parameter support
 
 const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
     const [inputData, setInputData] = useState<ScrapedItem[]>([]);
@@ -14,6 +15,10 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [fileName, setFileName] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // Manual parameters state
+    const [manualTriggerVolume, setManualTriggerVolume] = useState<number | null>(null);
+    const [manualRelevanceScore, setManualRelevanceScore] = useState<number | null>(null);
+    const [manualTriggerVelocity, setManualTriggerVelocity] = useState<number | null>(null);
     const [inputStats, setInputStats] = useState<{
         dateRange: { start: string; end: string } | null;
         triggerCount: number;
@@ -136,6 +141,40 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
         }
     };
 
+    const handleRunManualInference = async () => {
+        if (manualTriggerVolume === null || manualRelevanceScore === null || manualTriggerVelocity === null) {
+            setError("Please enter Trigger Volume, Relevance Score, and Trigger Velocity.");
+            return;
+        }
+        setIsLoading(true);
+        setError(null);
+        try {
+            // Create synthetic ScrapedItem with the manual parameters
+            const manualItem: ScrapedItem = {
+                id: 'manual-' + Date.now(),
+                source: 'Manual Input',
+                date: new Date().toISOString().split('T')[0],
+                headline: `Manual prediction with triggers=${manualTriggerVolume}, relevance=${manualRelevanceScore}, velocity=${manualTriggerVelocity}`,
+                snippet: 'User-defined parameters for inference',
+                url: '',
+                relevance_score: manualRelevanceScore,
+                type: 'TRIGGER_EVENT',
+                extracted_metadata: {
+                    manual_trigger_volume: manualTriggerVolume,
+                    manual_relevance_score: manualRelevanceScore,
+                    manual_trigger_velocity: manualTriggerVelocity
+                }
+            };
+            const result = await api.runPrediction([manualItem]);
+            setPrediction(result);
+        } catch (error) {
+            console.error("Manual inference failed:", error);
+            setError("Manual inference failed. Check console for details.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleDownloadModel = () => {
         window.open(api.getDownloadModelUrl(), '_blank');
     };
@@ -251,60 +290,130 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Left: Input & Actions */}
                 <div className="space-y-6">
-                    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-                        <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-2">
-                            <Upload size={16} className="text-blue-400" /> 1. Load New Data
-                        </h3>
+                    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 space-y-4">
+                        {/* Section 1: CSV Upload */}
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <Upload size={16} className="text-blue-400" /> 1. Load New Data (CSV)
+                            </h3>
 
-                        <div className="border-2 border-dashed border-slate-700 rounded-lg p-8 text-center hover:border-blue-500/50 transition-colors bg-slate-900/30">
-                            <input
-                                type="file"
-                                id="inference-upload"
-                                className="hidden"
-                                accept=".csv"
-                                onChange={handleFileUpload}
-                            />
-                            <label htmlFor="inference-upload" className="cursor-pointer flex flex-col items-center gap-3">
-                                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
-                                    <FileText size={24} />
+                            <div className="border-2 border-dashed border-slate-700 rounded-lg p-8 text-center hover:border-blue-500/50 transition-colors bg-slate-900/30">
+                                <input
+                                    type="file"
+                                    id="inference-upload"
+                                    className="hidden"
+                                    accept=".csv"
+                                    onChange={handleFileUpload}
+                                />
+                                <label htmlFor="inference-upload" className="cursor-pointer flex flex-col items-center gap-3">
+                                    <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                                        <FileText size={24} />
+                                    </div>
+                                    <span className="text-sm font-medium text-slate-300">
+                                        {fileName ? fileName : "Click to upload CSV"}
+                                    </span>
+                                    <span className="text-xs text-slate-500">
+                                        Format: Date, Source, Type, Headline...
+                                    </span>
+                                </label>
+                            </div>
+
+                            {inputData.length > 0 && (
+                                <div className="mt-3 flex items-center gap-2 text-xs text-emerald-400 bg-emerald-900/10 p-2 rounded border border-emerald-900/30">
+                                    <CheckCircle size={14} />
+                                    Loaded {inputData.length} records ready for prediction.
                                 </div>
-                                <span className="text-sm font-medium text-slate-300">
-                                    {fileName ? fileName : "Click to upload CSV"}
-                                </span>
-                                <span className="text-xs text-slate-500">
-                                    Format: Date, Source, Type, Headline...
-                                </span>
-                            </label>
+                            )}
+
+                            <button
+                                onClick={handleRunInference}
+                                disabled={isLoading || inputData.length === 0}
+                                className="w-full mt-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3 rounded-lg font-bold shadow-lg shadow-purple-900/20 flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                                {isLoading ? (
+                                    <span className="animate-pulse">Running...</span>
+                                ) : (
+                                    <>
+                                        <Play size={18} fill="currentColor" /> RUN PREDICTION (CSV)
+                                    </>
+                                )}
+                            </button>
                         </div>
 
-                        {inputData.length > 0 && (
-                            <div className="mt-4 flex items-center gap-2 text-xs text-emerald-400 bg-emerald-900/10 p-2 rounded border border-emerald-900/30">
-                                <CheckCircle size={14} />
-                                Loaded {inputData.length} records ready for prediction.
+                        {/* Section 2: Manual Parameters */}
+                        <div className="border-t border-slate-700 pt-4">
+                            <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <Activity size={16} className="text-purple-400" /> 2. Manual Parameters
+                            </h3>
+                            <p className="text-xs text-slate-500 mb-3">Configure features manually without uploading data:</p>
+                            
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-xs text-slate-400 mb-1 block">Trigger Volume</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        max="100"
+                                        placeholder="e.g., 4.0"
+                                        value={manualTriggerVolume !== null ? manualTriggerVolume : ''}
+                                        onChange={(e) => setManualTriggerVolume(e.target.value ? parseFloat(e.target.value) : null)}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                                    />
+                                    <div className="text-[10px] text-slate-600 mt-1">Triggers Last Period</div>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-slate-400 mb-1 block">Relevance Score</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        max="100"
+                                        placeholder="e.g., 3.9"
+                                        value={manualRelevanceScore !== null ? manualRelevanceScore : ''}
+                                        onChange={(e) => setManualRelevanceScore(e.target.value ? parseFloat(e.target.value) : null)}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                                    />
+                                    <div className="text-[10px] text-slate-600 mt-1">Relevance Last Period</div>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-slate-400 mb-1 block">Trigger Velocity</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="-2"
+                                        max="2"
+                                        placeholder="e.g., 0.0"
+                                        value={manualTriggerVelocity !== null ? manualTriggerVelocity : ''}
+                                        onChange={(e) => setManualTriggerVelocity(e.target.value ? parseFloat(e.target.value) : null)}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                                    />
+                                    <div className="text-[10px] text-slate-600 mt-1">Change Rate [-2, 2]</div>
+                                </div>
                             </div>
-                        )}
+                            
+                            <button
+                                onClick={handleRunManualInference}
+                                disabled={isLoading || manualTriggerVolume === null || manualRelevanceScore === null}
+                                className="w-full mt-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white py-3 rounded-lg font-bold shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                                {isLoading ? (
+                                    <span className="animate-pulse">Running...</span>
+                                ) : (
+                                    <>
+                                        <Play size={18} fill="currentColor" /> RUN MANUAL PREDICTION
+                                    </>
+                                )}
+                            </button>
+                        </div>
 
                         {error && (
-                            <div className="mt-4 flex items-center gap-2 text-xs text-red-400 bg-red-900/10 p-2 rounded border border-red-900/30">
+                            <div className="mt-3 flex items-center gap-2 text-xs text-red-400 bg-red-900/10 p-2 rounded border border-red-900/30">
                                 <AlertTriangle size={14} />
                                 {error}
                             </div>
                         )}
                     </div>
-
-                    <button
-                        onClick={handleRunInference}
-                        disabled={isLoading || inputData.length === 0}
-                        className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-purple-900/20 flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isLoading ? (
-                            <span className="animate-pulse">Running Model...</span>
-                        ) : (
-                            <>
-                                <Play size={20} fill="currentColor" /> RUN PREDICTION
-                            </>
-                        )}
-                    </button>
                 </div>
 
                 {/* Right: Results & Download */}
@@ -316,7 +425,7 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
 
                         {prediction ? (
                             <div className="flex-1 flex flex-col justify-center items-center text-center space-y-6 animate-in fade-in zoom-in duration-300">
-
+                                
                                 {/* ALERTA DE DATOS INSUFICIENTES */}
                                 {prediction.warning_message && (
                                     <div className="w-full bg-amber-900/20 border border-amber-500/50 p-3 rounded-lg flex items-start gap-3 text-left animate-pulse">
@@ -331,9 +440,10 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
                                 {/* SCORE PRINCIPAL */}
                                 <div>
                                     <div className="text-xs text-slate-500 uppercase font-bold mb-1">Índice de Riesgo Global</div>
-                                    <div className={`text-6xl font-black tracking-tight ${prediction.risk_score > 70 ? 'text-red-500' :
+                                    <div className={`text-6xl font-black tracking-tight ${
+                                        prediction.risk_score > 70 ? 'text-red-500' : 
                                         prediction.risk_score > 30 ? 'text-orange-500' : 'text-emerald-500'
-                                        }`}>
+                                    }`}>
                                         {prediction.risk_score}
                                     </div>
                                     <div className="text-xs text-slate-400 mt-2">Escala Normalizada 0-100</div>
@@ -344,11 +454,11 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
                                     {/* Riesgo del Modelo */}
                                     <div className="bg-slate-950 p-3 rounded border border-slate-800 relative overflow-hidden text-left">
                                         <div className="flex justify-between items-end z-10 relative mb-1">
-                                            <span className="text-[10px] text-slate-400 uppercase font-bold">Model Risk</span>
+                                            <span className="text-[10px] text-slate-400 uppercase font-bold">Modelo (Vol.)</span>
                                             <span className="text-xl font-bold text-blue-400">{prediction.model_risk_score}</span>
                                         </div>
                                         <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden z-10 relative">
-                                            <div className="h-full bg-blue-500" style={{ width: `${prediction.model_risk_score}%` }}></div>
+                                            <div className="h-full bg-blue-500" style={{width: `${prediction.model_risk_score}%`}}></div>
                                         </div>
                                         <p className="text-[9px] text-slate-600 mt-2 z-10 relative leading-tight">
                                             Proyección vs. Máx. Histórico
@@ -362,7 +472,7 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
                                             <span className="text-xl font-bold text-purple-400">{prediction.zone_risk_score}</span>
                                         </div>
                                         <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden z-10 relative">
-                                            <div className="h-full bg-purple-500" style={{ width: `${prediction.zone_risk_score}%` }}></div>
+                                            <div className="h-full bg-purple-500" style={{width: `${prediction.zone_risk_score}%`}}></div>
                                         </div>
                                         <p className="text-[9px] text-slate-600 mt-2 z-10 relative leading-tight">
                                             Mención actual vs. Pico Histórico
@@ -373,22 +483,25 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
                                 {/* Crime Volume Display */}
                                 <div className="text-center pt-2 border-t border-slate-800">
                                     <div className="text-xs text-slate-500 uppercase font-bold mb-1">Volumen Proyectado</div>
-                                    <div className="text-3xl font-black text-white">{prediction.predicted_crime_volume}</div>
+                                    <div className="text-3xl font-black text-white">{prediction.predicted_volume}</div>
                                     <div className="text-xs text-slate-400">incidentes</div>
                                 </div>
 
-                                <div>
-                                    {/* Dynamic Explanation */}
-                                    <div className="mt-4 p-3 bg-slate-950 rounded border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                                {/* Dynamic Explanation */}
+                                <div className="mt-4 p-3 bg-slate-950 rounded border border-slate-800 text-xs text-slate-300 leading-relaxed">
                                         {(() => {
-                                            const volume = prediction.predicted_crime_volume;
-                                            const forecastDays = inputStats.forecastHorizon;
-                                            const granularity = prediction.model_metadata?.granularity || 'W';
-
+                                            const volume = prediction.predicted_volume;
+                                            
                                             // Get ACTUAL values from model metadata (what was used during training/feature engineering)
                                             const horizonUnits = prediction.model_metadata?.horizon_units ?? 1;
-                                            const horizonDays = prediction.model_metadata?.horizon_days ?? forecastDays;
+                                            const horizonDays = prediction.model_metadata?.horizon_days ?? 30;
                                             const horizonSuffix = prediction.model_metadata?.horizon_suffix ?? 'w';
+                                            
+                                            // Determine time unit label based on suffix
+                                            let timeUnitLabel = 'days';
+                                            if (horizonSuffix === 'w') timeUnitLabel = 'days';
+                                            else if (horizonSuffix === 'm') timeUnitLabel = 'months';
+                                            else if (horizonSuffix === 'd') timeUnitLabel = 'days';
 
                                             // Get actual feature values used for prediction (last row of inference data)
                                             const lastRow = prediction.inference_data_sample?.[prediction.inference_data_sample.length - 1];
@@ -423,30 +536,30 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
 
                                             return (
                                                 <>
-                                                    Based on <strong className="text-blue-400">{triggersUsed.toFixed(0)} trigger events</strong> in the last <strong className="text-blue-400">{horizonDays} days</strong> (weighted relevance: <strong className="text-blue-400">{relevanceUsed.toFixed(2)}</strong>)
+                                                    Based on <strong className="text-blue-400">{triggersUsed.toFixed(0)} trigger events</strong> in the last <strong className="text-blue-400">{horizonDays} {timeUnitLabel}</strong> (weighted relevance: <strong className="text-blue-400">{relevanceUsed.toFixed(2)}</strong>)
                                                     {analysisWindow && (
                                                         <> from <strong className="text-blue-400">{analysisWindow.start}</strong> to <strong className="text-blue-400">{analysisWindow.end}</strong></>
                                                     )}, the model projects a <strong className={trendColor}>{trend} trend</strong> of criminality
-                                                    over the next <strong className="text-purple-400">
-                                                        {horizonUnits} {
-                                                            horizonSuffix === 'm' ? 'months' :
-                                                                horizonSuffix === 'w' ? 'weeks' : 'days'
-                                                        }
-                                                    </strong>.
+                                                    over the next <strong className="text-purple-400">{horizonDays} {timeUnitLabel}</strong>.
                                                 </>
                                             );
                                         })()}
                                     </div>
-                                </div>                                <div className="w-full h-px bg-slate-800"></div>
+
+                                <div className="w-full h-px bg-slate-800"></div>
 
                                 <div className="grid grid-cols-2 gap-4 w-full">
                                     <div className="bg-slate-950 p-3 rounded border border-slate-800">
                                         <div className="text-[10px] text-slate-500 uppercase">Horizon</div>
                                         <div className="text-lg font-bold text-blue-400">
-                                            {prediction.model_metadata?.horizon_units} {
-                                                prediction.model_metadata?.horizon_suffix === 'm' ? 'Months' :
-                                                    prediction.model_metadata?.horizon_suffix === 'w' ? 'Weeks' : 'Days'
-                                            }
+                                            {(() => {
+                                                const horizonSuffix = prediction.model_metadata?.horizon_suffix ?? 'w';
+                                                const horizonDays = prediction.model_metadata?.horizon_days ?? 30;
+                                                let unit = 'Days';
+                                                if (horizonSuffix === 'w') unit = 'Days';
+                                                else if (horizonSuffix === 'm') unit = 'Months';
+                                                return `${horizonDays} ${unit}`;
+                                            })()}
                                         </div>
                                     </div>
                                     <div className="bg-slate-950 p-3 rounded border border-slate-800">

@@ -26,9 +26,26 @@ class Scraper:
     def _ai_scrape(self, config: ScrapingConfig) -> Tuple[List[ScrapedItem], CleaningStats]:
         """AI-assisted scraper: generate search queries via LLM, fetch targeted results, extract with AI."""
         import sys
+        import time
         print("\n" + "="*60, file=sys.stderr, flush=True)
         print("[SCRAPER] Starting AI-assisted scraping...", file=sys.stderr, flush=True)
         print(f"[SCRAPER] Config has {len(config.target_organizations)} orgs, {len(config.predictor_events)} events", file=sys.stderr, flush=True)
+        
+        # Control de tiempo y límites
+        start_time = time.time()
+        max_time_seconds = config.max_scraping_time_minutes * 60 if config.max_scraping_time_minutes else None
+        max_articles = config.max_articles
+        
+        if max_time_seconds:
+            print(f"[SCRAPER] Time limit: {config.max_scraping_time_minutes} minutes", file=sys.stderr, flush=True)
+        else:
+            print(f"[SCRAPER] Time limit: None (unlimited)", file=sys.stderr, flush=True)
+            
+        if max_articles:
+            print(f"[SCRAPER] Article limit: {max_articles} articles", file=sys.stderr, flush=True)
+        else:
+            print(f"[SCRAPER] Article limit: None (unlimited)", file=sys.stderr, flush=True)
+        
         print("="*60 + "\n", file=sys.stderr, flush=True)
         
         items: List[ScrapedItem] = []
@@ -133,11 +150,29 @@ class Scraper:
         print("[Strategy] Using Perplexity API for open web search", file=sys.stderr, flush=True)
         
         for query in search_queries:
+            # Check time limit
+            if max_time_seconds and (time.time() - start_time) > max_time_seconds:
+                print(f"[SCRAPER] Time limit reached ({config.max_scraping_time_minutes} min) - Stopping", file=sys.stderr, flush=True)
+                break
+            
+            # Check article limit
+            if max_articles and len(collected) >= max_articles:
+                print(f"[SCRAPER] Article limit reached ({max_articles}) - Stopping", file=sys.stderr, flush=True)
+                break
+                
             print(f"[Perplexity Search] Query: {query[:60]}...", file=sys.stderr, flush=True)
             urls = nlp.web_search(query, site_filter=None)  # No site restrictions
             print(f"[Perplexity Search] Found {len(urls)} URLs", file=sys.stderr, flush=True)
             
             for article_url in urls:
+                # Check limits before each article
+                if max_time_seconds and (time.time() - start_time) > max_time_seconds:
+                    print(f"[SCRAPER] Time limit reached - Stopping", file=sys.stderr, flush=True)
+                    break
+                if max_articles and len(collected) >= max_articles:
+                    print(f"[SCRAPER] Article limit reached - Stopping", file=sys.stderr, flush=True)
+                    break
+                    
                 print(f"[Fetch] {article_url}", file=sys.stderr, flush=True)
                 art_resp = safe_get(article_url)
                 if art_resp and art_resp.status_code == 200:

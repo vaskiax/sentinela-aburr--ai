@@ -70,8 +70,10 @@ export interface ModelMetadata {
 
 export interface PredictionResult {
   risk_score: number;
+  risk_level: string;  // 'LOW', 'MODERATE', 'ELEVATED', 'HIGH', 'CRITICAL'
   model_risk_score: number;  // NUEVO: desglose del riesgo del modelo
   zone_risk_score: number;  // NUEVO: desglose del riesgo de zona
+  predicted_volume: number;  // Volumen de crímenes proyectado
   expected_crime_type: string;
   affected_zones: string[];
   duration_days: number;
@@ -83,6 +85,7 @@ export interface PredictionResult {
   model_comparison?: Array<{ model: string; rmse: number }>;
   model_metadata?: ModelMetadata;
   warning_message?: string;  // NUEVO: alerta si datos insuficientes
+  calculation_breakdown?: Record<string, any>;  // NUEVO: breakdown detallado de cálculos para audit trail
 }
 
 export interface ProcessingLog {
@@ -119,6 +122,10 @@ export interface ScrapingConfig {
   // Model Configuration
   forecast_horizon?: number;
   granularity?: 'D' | 'W' | 'M';
+  
+  // Scraping Limits
+  max_scraping_time_minutes?: number;  // Time limit for scraping in minutes
+  max_articles?: number;               // Maximum number of articles to scrape
 }
 
 export interface ScrapedItem {
@@ -130,4 +137,5 @@ export interface ScrapedItem {
   url: string;
   relevance_score: number;
   type: 'TRIGGER_EVENT' | 'CRIME_STAT'; // Strict separation for X and Y
+  extracted_metadata?: Record<string, any>; // Optional metadata for manual parameters and NLP data
 }

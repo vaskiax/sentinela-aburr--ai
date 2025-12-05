@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ScrapingConfig } from '../types';
 import { MASTER_PREDICTOR_EVENTS, MASTER_PREDICTOR_RANKS, MASTER_TARGET_CRIMES, MASTER_ORGS_MAJOR, MASTER_COMBOS_EXTENDED } from '../constants';
-import { Check, Search, Calendar, CheckSquare, Square, Fingerprint, Target, Upload, Activity } from 'lucide-react';
+import { Check, Search, Calendar, CheckSquare, Square, Fingerprint, Target, Upload, Activity, Clock, FileText } from 'lucide-react';
 import { api } from '../services/api';
 
 interface Props {
@@ -215,6 +215,36 @@ const PipelineConfig: React.FC<Props> = ({ config, setConfig, onStartPipeline })
               <option value="W">Weekly</option>
               <option value="M">Monthly</option>
             </select>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-slate-700 pl-4">
+            <Clock size={16} className="text-cyan-400" />
+            <span className="text-xs font-bold text-slate-300">Max Scraping Time:</span>
+            <input
+              type="number"
+              min="1"
+              max="180"
+              value={config.max_scraping_time_minutes || ''}
+              placeholder="No limit"
+              onChange={(e) => setConfig(prev => ({ ...prev, max_scraping_time_minutes: e.target.value ? parseInt(e.target.value) : undefined }))}
+              className="w-20 bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
+            />
+            <span className="text-slate-600 text-xs">min</span>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-slate-700 pl-4">
+            <FileText size={16} className="text-pink-400" />
+            <span className="text-xs font-bold text-slate-300">Max Articles:</span>
+            <input
+              type="number"
+              min="10"
+              max="1000"
+              value={config.max_articles || ''}
+              placeholder="No limit"
+              onChange={(e) => setConfig(prev => ({ ...prev, max_articles: e.target.value ? parseInt(e.target.value) : undefined }))}
+              className="w-20 bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-pink-500"
+            />
+            <span className="text-slate-600 text-xs">items</span>
           </div>
         </div>
       </div>

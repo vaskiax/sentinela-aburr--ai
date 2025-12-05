@@ -183,9 +183,21 @@ Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle d
 2.  **snippet**: A concise 2-3 sentence summary of the article's key information.
 3.  **date**: The publication date in strict "YYYY-MM-DD" format. Prioritize metadata tags like `<time datetime="...">` or `article:published_time`. If no metadata is found, parse it from the text. As a last resort, use today's date.
 4.  **relevance**: A relevance score from 0.0 to 1.0. This score must reflect how closely the article matches the following high-value keywords: **{keywords}**. A high score (0.7-1.0) should be reserved for articles detailing direct actions against these specific groups or crimes. A low score (< 0.2) should be for unrelated news.
-5.  **type**: Classify the article's primary focus. This is critical.
-    *   Use **"TRIGGER_EVENT"** ONLY if the main topic is a direct action by authorities (e.g., a capture, an operation, a raid, a neutralization, a dismantling of a criminal group).
-    *   Use **"CRIME_STAT"** if the article is a report on crime trends, statistics, analysis, or describes a crime that has already occurred without a direct and immediate operational response as the main subject.
+5.  **type**: Classify the article's primary focus. This is EXTREMELY CRITICAL for model causality.
+    *   Use **"TRIGGER_EVENT"** ONLY for PROACTIVE STATE ACTIONS or CRIMINAL STRUCTURE CHANGES:
+        - Police/Military captures, raids (allanamientos), operations
+        - Seizures of drugs, weapons, cash
+        - Deaths of cartel leaders/key figures
+        - Gang leadership changes, structure dismantling
+        - Declarations of war between criminal groups
+        - Do NOT include reactive crimes in this category
+    *   Use **"CRIME_STAT"** ONLY for REACTIVE CRIME FACTS or STATISTICS:
+        - Homicides, murders, bodies found
+        - Reports of extortion, kidnapping, theft
+        - Crime trend analysis and statistics
+        - Denunciations of criminal activity
+        - Do NOT classify police operations or captures as CRIME_STAT
+    This distinction is critical to avoid confusing causes (triggers) with effects (crime stats).
 6.  **extracted_metadata**: A nested JSON object containing extracted entities.
     *   **crime_type**: The specific crime mentioned (e.g., Homicide, Extortion, Drug Trafficking, Kidnapping). If multiple, list the primary one. Default to "Unknown" if none are clearly stated.
     *   **organization**: The specific criminal organization mentioned (e.g., Clan del Golfo, La Oficina, Los Chatas). Default to "Unknown".

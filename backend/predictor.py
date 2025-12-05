@@ -12,7 +12,6 @@ from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_squared_error
 from .models import PredictionResult, TrainingMetrics, ScrapingConfig, ModelMetadata, ScrapedItem
-from .risk_levels import get_risk_level
 
 class Predictor:
     def __init__(self):
@@ -65,6 +64,19 @@ class Predictor:
         historical_max = rolling_zone_df.max().max()
         
         return float(historical_max) if historical_max > 5 else 5.0  # Mínimo 5 para evitar divisiones locas
+
+    def _calculate_risk_level(self, risk_score: float) -> str:
+        """Calcula el nivel de riesgo textual basado en el score numérico (0-100)"""
+        if risk_score >= 70:
+            return "CRITICAL"
+        elif risk_score >= 50:
+            return "HIGH"
+        elif risk_score >= 30:
+            return "ELEVATED"
+        elif risk_score >= 10:
+            return "MODERATE"
+        else:
+            return "LOW"
 
     def train_and_predict(self, config: ScrapingConfig, items: List[ScrapedItem]) -> PredictionResult:
         """
@@ -123,6 +135,14 @@ class Predictor:
         # Features (X): Sum of triggers in the PAST X units
         features_df[f'triggers_last_{horizon_units}{suffix}'] = features_df['trigger_count'].rolling(window=horizon_units, min_periods=1).sum()
         features_df[f'relevance_last_{horizon_units}{suffix}'] = features_df['trigger_relevance_sum'].rolling(window=horizon_units, min_periods=1).sum()
+        
+        # NEW: Feature Engineering - Trigger Velocity
+        # Calculate the percentage change in trigger count to capture ACCELERATION of police actions
+        # This helps distinguish between steady state and escalating situations
+        features_df['trigger_velocity'] = features_df['trigger_count'].pct_change().fillna(0)
+        # Cap extreme velocity values to avoid outliers overwhelming the model
+        features_df['trigger_velocity'] = features_df['trigger_velocity'].clip(-2.0, 2.0)
+        print(f"[Feature Engineering] Added trigger_velocity: min={features_df['trigger_velocity'].min():.3f}, max={features_df['trigger_velocity'].max():.3f}")
 
         # Target (y): Sum of crimes in the NEXT X units
         features_df[f'crimes_next_{horizon_units}{suffix}'] = daily_crimes.rolling(window=horizon_units, min_periods=1).sum().shift(-horizon_units)
@@ -133,7 +153,8 @@ class Predictor:
         if len(model_data) < min_samples:
             return self._generate_heuristic_result(config, items, f"Not enough overlapping data for temporal model ({granularity}).")
 
-        X = model_data[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}']]
+        # Include trigger_velocity as a predictor alongside volume and relevance
+        X = model_data[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}', 'trigger_velocity']]
         y = model_data[f'crimes_next_{horizon_units}{suffix}']
 
         # --- 3. Train/Test Split ---
@@ -158,7 +179,7 @@ class Predictor:
             results[name] = {"mse": mse, "rmse": np.sqrt(mse)}
 
         # --- 5. Prediction & Output Generation ---
-        last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}']].iloc[-1:]
+        last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}', 'trigger_velocity']].iloc[-1:]
         predicted_crime_volume = self.best_model.predict(last_features)[0]
 
         # --- NUEVO: CALIBRACIÓN DINÁMICA ---
@@ -174,9 +195,13 @@ class Predictor:
 
         # B. Riesgo de Zona (Normalizado contra el PEOR caso histórico, no contra 10 fijo)
         zone_risks, max_zone_risk = self._calculate_zone_risks(df, benchmark_max=max_observed_zone_activity)
+        print(f"[CALC] Zone Risk based on {len(zone_risks)} zones, max mentions in history: {max_observed_zone_activity:.0f}")
+        if zone_risks:
+            print(f"[CALC] Top zone risk: {zone_risks[0]['zone']} = {zone_risks[0]['risk']:.1f}%")
         
         # C. Riesgo Global (MAX de los dos)
         final_risk_score = max(model_risk, max_zone_risk)
+        print(f"[CALC] Final Risk Score = MAX({model_risk:.1f}, {max_zone_risk:.1f}) = {final_risk_score:.1f}%")
 
         full_series_predictions = self.best_model.predict(X)
         timeline_data = [{"day": str(date.date()), "risk_score": int(round(min(99, (pred / max_observed_crimes) * 100 if max_observed_crimes > 0 else 50)))}
@@ -232,10 +257,10 @@ class Predictor:
 
         return PredictionResult(
             risk_score=round(float(final_risk_score), 1),
+            risk_level=self._calculate_risk_level(final_risk_score),
             model_risk_score=round(float(model_risk), 1),  # NUEVO: desglose del riesgo del modelo
             zone_risk_score=round(float(max_zone_risk), 1),  # NUEVO: desglose del riesgo de zona
-            risk_level=get_risk_level(final_risk_score),  # NUEVO: clasificación categórica
-            predicted_crime_volume=round(float(predicted_crime_volume), 2),  # NUEVO: volumen crudo
+            predicted_volume=round(float(predicted_crime_volume), 2),  # Volumen predicho en test set
             expected_crime_type=f"Volume: {round(float(predicted_crime_volume), 1)} incidents",
             affected_zones=self._extract_recent_zones(df),
             duration_days=int(horizon_days),
@@ -274,7 +299,20 @@ class Predictor:
             training_data_sample=training_data_sample,
             test_data_sample=test_data_sample,
             training_data_full=training_data_full,
-            test_data_full=test_data_full
+            test_data_full=test_data_full,
+            # Audit trail: Calculation breakdown for transparency
+            calculation_breakdown={
+                "raw_predicted_volume": float(predicted_crime_volume),
+                "historical_max_volume": float(max_observed_crimes),
+                "model_risk_formula": f"({predicted_crime_volume:.2f} / {max_observed_crimes:.2f}) * 100",
+                "model_risk_score": float(model_risk),
+                "historical_max_zone_mentions": float(max_observed_zone_activity),
+                "max_zone_mentions_current": float(max_zone_risk) if max_zone_risk > 0 else 0.0,
+                "zone_risk_formula": f"(mentions / {max_observed_zone_activity:.2f}) * 100",
+                "zone_risk_score": float(max_zone_risk),
+                "final_risk_score": float(final_risk_score),
+                "risk_calculation": "MAX(model_risk, zone_risk)"
+            }
         )
 
     def predict_on_demand(self, new_items: List[ScrapedItem], config: ScrapingConfig) -> Dict[str, Any]:
@@ -304,6 +342,25 @@ class Predictor:
         print(f"[Predictor] ===== INFERENCE DEBUG LOG =====")
         print(f"[Predictor] Input items count: {len(new_items)}")
 
+        # CHECK FOR MANUAL PARAMETERS (extracted_metadata)
+        # If user provides manual_trigger_volume, manual_relevance_score, and manual_trigger_velocity, use them directly
+        manual_trigger_volume = None
+        manual_relevance_score = None
+        manual_trigger_velocity = None
+        
+        for item in new_items:
+            if hasattr(item, 'extracted_metadata') and item.extracted_metadata:
+                if isinstance(item.extracted_metadata, dict):
+                    manual_trigger_volume = item.extracted_metadata.get('manual_trigger_volume')
+                    manual_relevance_score = item.extracted_metadata.get('manual_relevance_score')
+                    manual_trigger_velocity = item.extracted_metadata.get('manual_trigger_velocity')
+                    if manual_trigger_volume is not None and manual_relevance_score is not None and manual_trigger_velocity is not None:
+                        print(f"[Predictor] MANUAL PARAMETERS DETECTED:")
+                        print(f"[Predictor] - Manual trigger volume: {manual_trigger_volume}")
+                        print(f"[Predictor] - Manual relevance score: {manual_relevance_score}")
+                        print(f"[Predictor] - Manual trigger velocity: {manual_trigger_velocity}")
+                        break
+
         # Replicar la misma ingeniería de características que en el entrenamiento
         df = pd.DataFrame([
             {
@@ -330,10 +387,10 @@ class Predictor:
              max_observed_zone_activity = training_metadata.get('max_observed_zone_activity', 10.0)
              return PredictionResult(
                 risk_score=0,
+                risk_level="LOW",
                 model_risk_score=0,
                 zone_risk_score=0,
-                risk_level="LOW",
-                predicted_crime_volume=0.0,
+                predicted_volume=0,
                 expected_crime_type="No data",
                 affected_zones=[],
                 duration_days=7,
@@ -369,24 +426,36 @@ class Predictor:
         
         features_df = pd.concat([daily_triggers, daily_trigger_relevance], axis=1).fillna(0)
         
-        # Dynamic Horizon Calculation
-        horizon_days = getattr(config, 'forecast_horizon', 7) or 7
+        # Dynamic Horizon Calculation - USE TRAINING VALUES FROM METADATA
+        # This ensures we use the EXACT same horizon that was used during training
+        horizon_days = training_metadata.get('horizon_days', 7)
+        horizon_units = training_metadata.get('horizon_units', None)
+        suffix = training_metadata.get('horizon_suffix', None)
         
-        if granularity == 'D':
-            horizon_units = horizon_days
-            suffix = 'd'
-        elif granularity == 'M':
-            horizon_units = max(1, round(horizon_days / 30))
-            suffix = 'm'
-        else: # Default 'W'
-            horizon_units = max(1, round(horizon_days / 7))
-            suffix = 'w'
+        # If metadata doesn't have these, calculate from granularity
+        if horizon_units is None or suffix is None:
+            horizon_days = getattr(config, 'forecast_horizon', 7) or 7
+            if granularity == 'D':
+                horizon_units = horizon_days
+                suffix = 'd'
+            elif granularity == 'M':
+                horizon_units = max(1, round(horizon_days / 30))
+                suffix = 'm'
+            else: # Default 'W'
+                horizon_units = max(1, round(horizon_days / 7))
+                suffix = 'w'
             
         print(f"[Predictor] Forecast horizon: {horizon_units} {suffix} ({horizon_days} days)")
         
         # Features (X): Sum of triggers in the PAST X units
         features_df[f'triggers_last_{horizon_units}{suffix}'] = features_df['trigger_count'].rolling(window=horizon_units, min_periods=1).sum()
         features_df[f'relevance_last_{horizon_units}{suffix}'] = features_df['trigger_relevance_sum'].rolling(window=horizon_units, min_periods=1).sum()
+        
+        # NEW: Feature Engineering - Trigger Velocity
+        # Calculate the percentage change in trigger count (same as in training)
+        features_df['trigger_velocity'] = features_df['trigger_count'].pct_change().fillna(0)
+        features_df['trigger_velocity'] = features_df['trigger_velocity'].clip(-2.0, 2.0)
+        print(f"[Predictor] Added trigger_velocity for inference: min={features_df['trigger_velocity'].min():.3f}, max={features_df['trigger_velocity'].max():.3f}")
 
         # Usar el último dato disponible para la predicción
         if features_df.empty:
@@ -395,10 +464,10 @@ class Predictor:
              max_observed_zone_activity = training_metadata.get('max_observed_zone_activity', 10.0)
              return PredictionResult(
                 risk_score=0,
+                risk_level="LOW",
                 model_risk_score=0,
                 zone_risk_score=0,
-                risk_level="LOW",
-                predicted_crime_volume=0.0,
+                predicted_volume=0,
                 expected_crime_type="Insufficient data",
                 affected_zones=[],
                 duration_days=horizon_days,
@@ -423,12 +492,28 @@ class Predictor:
                 warning_message="Insufficient data for feature engineering."
             )
 
-        last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}']].iloc[-1:]
+        # OVERRIDE FEATURES WITH MANUAL PARAMETERS IF PROVIDED
+        if manual_trigger_volume is not None and manual_relevance_score is not None and manual_trigger_velocity is not None:
+            print(f"[Predictor] ===== USING MANUAL PARAMETERS FOR PREDICTION =====")
+            # Create a DataFrame with manual values (including manual trigger_velocity if provided)
+            last_features = pd.DataFrame({
+                f'triggers_last_{horizon_units}{suffix}': [float(manual_trigger_volume)],
+                f'relevance_last_{horizon_units}{suffix}': [float(manual_relevance_score)],
+                'trigger_velocity': [float(manual_trigger_velocity)]
+            })
+            print(f"[Predictor] Manual features created:")
+            print(f"[Predictor] triggers_last_{horizon_units}{suffix}: {float(manual_trigger_volume)}")
+            print(f"[Predictor] relevance_last_{horizon_units}{suffix}: {float(manual_relevance_score)}")
+            print(f"[Predictor] trigger_velocity: {float(manual_trigger_velocity)} (manual input)")
+        else:
+            # Use calculated features from DataFrame (including trigger_velocity)
+            last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}', 'trigger_velocity']].iloc[-1:]
         
         # DEBUG: Print feature values before prediction
         print(f"[Predictor] ===== FEATURE VALUES (Last Row) =====")
         print(f"[Predictor] triggers_last_{horizon_units}{suffix}: {last_features.iloc[0][f'triggers_last_{horizon_units}{suffix}']}")
         print(f"[Predictor] relevance_last_{horizon_units}{suffix}: {last_features.iloc[0][f'relevance_last_{horizon_units}{suffix}']}")
+        print(f"[Predictor] trigger_velocity: {last_features.iloc[0]['trigger_velocity']}")
         print(f"[Predictor] Feature shape: {last_features.shape}")
         print(f"[Predictor] Feature columns: {list(last_features.columns)}")
         
@@ -455,32 +540,60 @@ class Predictor:
                 warning_msg = f"ADVERTENCIA: Datos insuficientes. Tienes {data_duration_days} días de historia, pero el modelo requiere una ventana de {horizon_days_needed} días. El riesgo podría estar subestimado."
                 print(f"[Predictor] Data Scarcity Warning: {warning_msg}")
 
+        # === RISK CALCULATION WITH TRANSPARENCY ===
         # 1. Riesgo del Modelo (Dinámico, normalizado)
+        # Formula: (Predicted_Volume / Historical_Max_Volume) * 100
+        # This normalizes current prediction against the worst case seen in history
         model_risk = min(99.0, (predicted_volume / max_observed_crimes) * 100 if max_observed_crimes > 0 else 50.0)
+        print(f"[CALC] Model Risk = ({predicted_volume:.2f} / {max_observed_crimes:.2f}) * 100 = {model_risk:.1f}%")
         
         # 2. Riesgo de Zona (Dinámico usando el benchmark histórico)
-        zone_risks, max_zone_risk_val = self._calculate_zone_risks(df, benchmark_max=max_observed_zone_activity)
+        # IMPORTANT: When manual parameters are used, there's no actual text data for zone extraction
+        # So zone_risk should be 0, and overall risk should be based ONLY on model_risk
+        if manual_trigger_volume is not None and manual_relevance_score is not None and manual_trigger_velocity is not None:
+            print(f"[Predictor] Manual parameters detected - skipping zone risk calculation (no real text data)")
+            zone_risks = []
+            max_zone_risk_val = 0.0
+        else:
+            zone_risks, max_zone_risk_val = self._calculate_zone_risks(df, benchmark_max=max_observed_zone_activity)
+            print(f"[CALC] Zone Risk based on {len(zone_risks)} zones, max mentions in history: {max_observed_zone_activity:.0f}")
+            if zone_risks:
+                print(f"[CALC] Top zone risk: {zone_risks[0]['zone']} = {zone_risks[0]['risk']:.1f}%")
 
         # 3. Global
         final_risk_score = max(model_risk, max_zone_risk_val)
+        print(f"[CALC] Final Risk Score = MAX({model_risk:.1f}, {max_zone_risk_val:.1f}) = {final_risk_score:.1f}%")
 
         # Export inference data sample for visualization (last 10 rows)
-        inference_sample = features_df.copy()
-        inference_sample['date'] = inference_sample.index.astype(str)
-        inference_data_sample = inference_sample.tail(10).reset_index(drop=True).to_dict('records')
-        
-        # Complete inference DataFrame for download
-        inference_full = features_df.copy()
-        inference_full['date'] = inference_full.index.astype(str)
-        inference_data_full = inference_full.reset_index(drop=True).to_dict('records')
+        # If manual parameters were used, create a synthetic row showing those values
+        if manual_trigger_volume is not None and manual_relevance_score is not None and manual_trigger_velocity is not None:
+            inference_sample = pd.DataFrame({
+                f'triggers_last_{horizon_units}{suffix}': [float(manual_trigger_volume)],
+                f'relevance_last_{horizon_units}{suffix}': [float(manual_relevance_score)],
+                'trigger_count': [float(manual_trigger_volume)],
+                'trigger_relevance_sum': [float(manual_relevance_score)],
+                'trigger_velocity': [float(manual_trigger_velocity)]
+            })
+            inference_sample['date'] = pd.Timestamp.now().strftime('%Y-%m-%d')
+            inference_data_sample = inference_sample.reset_index(drop=True).to_dict('records')
+            inference_data_full = inference_data_sample  # Same as sample for manual inputs
+            print(f"[Predictor] Created synthetic inference data for manual parameters")
+        else:
+            inference_sample = features_df.copy()
+            inference_sample['date'] = inference_sample.index.astype(str)
+            inference_data_sample = inference_sample.tail(10).reset_index(drop=True).to_dict('records')
+            
+            # Complete inference DataFrame for download
+            inference_full = features_df.copy()
+            inference_full['date'] = inference_full.index.astype(str)
+            inference_data_full = inference_full.reset_index(drop=True).to_dict('records')
 
-        # Retornar como PredictionResult (no dict) para que FastAPI lo serialice correctamente
         return PredictionResult(
             risk_score=round(float(final_risk_score), 1),
+            risk_level=self._calculate_risk_level(final_risk_score),
             model_risk_score=round(float(model_risk), 1),
             zone_risk_score=round(float(max_zone_risk_val), 1),
-            risk_level=get_risk_level(final_risk_score),
-            predicted_crime_volume=round(float(predicted_volume), 2),
+            predicted_volume=round(float(predicted_volume), 2),
             expected_crime_type=f"Volume: {round(float(predicted_volume), 2)} incidents",
             affected_zones=self._extract_recent_zones(df),
             duration_days=horizon_days,
@@ -510,7 +623,21 @@ class Predictor:
             status="success",
             warning_message=warning_msg,
             inference_data_sample=inference_data_sample,
-            inference_data_full=inference_data_full
+            inference_data_full=inference_data_full,
+            # Audit trail: Calculation breakdown for transparency
+            calculation_breakdown={
+                "raw_predicted_volume": float(predicted_volume),
+                "historical_max_volume": float(max_observed_crimes),
+                "model_risk_formula": f"({predicted_volume:.2f} / {max_observed_crimes:.2f}) * 100",
+                "model_risk_score": float(model_risk),
+                "historical_max_zone_mentions": float(max_observed_zone_activity),
+                "zone_risk_current_mentions": float(max_zone_risk_val / 100 * max_observed_zone_activity) if max_zone_risk_val > 0 else 0.0,
+                "zone_risk_formula": f"({max_zone_risk_val / 100 * max_observed_zone_activity:.2f} / {max_observed_zone_activity:.2f}) * 100" if max_zone_risk_val > 0 else "No zone data",
+                "zone_risk_score": float(max_zone_risk_val),
+                "final_risk_score": float(final_risk_score),
+                "risk_calculation": "MAX(model_risk, zone_risk)",
+                "manual_parameters_used": manual_trigger_volume is not None and manual_relevance_score is not None and manual_trigger_velocity is not None
+            }
         )
 
 
@@ -566,10 +693,10 @@ class Predictor:
     def _generate_heuristic_result(self, config, items, message="Insufficient Data for ML") -> PredictionResult:
         return PredictionResult(
             risk_score=10,
-            model_risk_score=10,
-            zone_risk_score=0,
-            risk_level="MODERATE",
-            predicted_crime_volume=0.0,
+            risk_level="LOW",
+            model_risk_score=10.0,
+            zone_risk_score=0.0,
+            predicted_volume=0,
             expected_crime_type=message,
             affected_zones=[],
             duration_days=0,
@@ -583,5 +710,6 @@ class Predictor:
             ),
             model_metadata=ModelMetadata(
                 regressors=[], targets=[], training_steps=[message], model_type="Heuristic Fallback"
-            )
+            ),
+            warning_message=message
         )

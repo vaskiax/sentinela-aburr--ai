@@ -10,6 +10,7 @@ import ModelMetrics from './components/ModelMetrics';
 import ModelComparison from './components/ModelComparison';
 import CleaningReport from './components/CleaningReport';
 import InferenceView from './components/InferenceView';
+import AuditTrail from './components/AuditTrail';
 // ... (existing imports)
 
 // ... (inside renderContent function, DASHBOARD case)
@@ -319,14 +320,31 @@ function App() {
             {/* Top KPI Cards */}
             <div className="grid grid-cols-4 gap-4">
               <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg relative overflow-hidden">
-                <p className="text-[10px] text-slate-500 font-mono mb-1 uppercase">Violence Risk Index</p>
-                <div className="text-4xl font-bold text-white">{result?.risk_score ?? '--'}</div>
-                <div className={`text-xs mt-1 font-bold ${result?.risk_level === 'CRITICAL' ? 'text-red-500' :
+                <p className="text-[10px] text-slate-500 font-mono mb-2 uppercase font-bold">Violence Risk Index</p>
+                <div className={`text-5xl font-black mb-2 ${result?.risk_level === 'CRITICAL' ? 'text-red-500' :
                   result?.risk_level === 'HIGH' ? 'text-orange-500' :
                     result?.risk_level === 'ELEVATED' ? 'text-yellow-500' :
                       result?.risk_level === 'MODERATE' ? 'text-blue-500' : 'text-green-500'
                   }`}>
-                  {result?.risk_level ? `${result.risk_level} LEVEL` : '--'}
+                  {result?.risk_score ?? '--'}
+                </div>
+                <div className={`text-sm font-bold mb-3 ${result?.risk_level === 'CRITICAL' ? 'text-red-400' :
+                  result?.risk_level === 'HIGH' ? 'text-orange-400' :
+                    result?.risk_level === 'ELEVATED' ? 'text-yellow-400' :
+                      result?.risk_level === 'MODERATE' ? 'text-blue-400' : 'text-green-400'
+                  }`}>
+                  {result?.risk_level ? result.risk_level : '--'}
+                </div>
+                {/* Desglose */}
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Model Risk:</span>
+                    <span className="font-bold text-blue-400">{result?.model_risk_score ?? '--'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Zone Activity:</span>
+                    <span className="font-bold text-purple-400">{result?.zone_risk_score ?? '--'}</span>
+                  </div>
                 </div>
               </div>
               <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg col-span-2">
@@ -366,6 +384,11 @@ function App() {
 
             {result?.training_metrics && (
               <ModelMetrics metrics={result.training_metrics} />
+            )}
+
+            {/* Audit Trail: Transparency in Calculations */}
+            {result?.calculation_breakdown && (
+              <AuditTrail breakdown={result.calculation_breakdown} />
             )}
 
             {/* Bottom Section: Charts & Map */}

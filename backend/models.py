@@ -40,6 +40,8 @@ class ScrapingConfig(BaseModel):
     target_crimes: List[str]
     forecast_horizon: int = 7 # Default to 7 days
     granularity: str = 'W' # 'D' (Daily), 'W' (Weekly), 'M' (Monthly)
+    max_scraping_time_minutes: Optional[int] = None  # None = sin límite de tiempo
+    max_articles: Optional[int] = None  # None = sin límite de artículos
 
 class ScrapedItem(BaseModel):
     id: str
@@ -85,10 +87,10 @@ class ModelMetadata(BaseModel):
 
 class PredictionResult(BaseModel):
     risk_score: float  # MAX(model_risk, zone_risk)
+    risk_level: str  # 'LOW', 'MODERATE', 'ELEVATED', 'HIGH', 'CRITICAL'
     model_risk_score: float  # Desglose: Riesgo del modelo (0-100, normalizado)
     zone_risk_score: float  # Desglose: Riesgo de zona (0-100, normalizado)
-    risk_level: str  # Clasificación: LOW, MODERATE, ELEVATED, HIGH, CRITICAL
-    predicted_crime_volume: float  # Volumen predicho por el modelo (número crudo)
+    predicted_volume: float  # Volumen de crímenes proyectado (raw prediction)
     expected_crime_type: str
     affected_zones: List[str]
     duration_days: int
@@ -109,6 +111,8 @@ class PredictionResult(BaseModel):
     training_data_full: Optional[List[Dict[str, Any]]] = None
     test_data_full: Optional[List[Dict[str, Any]]] = None
     inference_data_full: Optional[List[Dict[str, Any]]] = None
+    # Audit trail: Breakdown of calculation for transparency
+    calculation_breakdown: Optional[Dict[str, Any]] = None  # Contains raw values: raw_predicted_volume, historical_max_volume, current_zone_mentions, etc.
 
 class ProcessingLog(BaseModel):
     id: int
