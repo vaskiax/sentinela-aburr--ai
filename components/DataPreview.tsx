@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrapedItem } from '../types';
-import { Database, ArrowRight, Download, ExternalLink } from 'lucide-react';
+import { Database, ArrowRight, Download, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Props {
   data: ScrapedItem[];
@@ -8,11 +8,19 @@ interface Props {
 }
 
 const DataPreview: React.FC<Props> = ({ data, onProceed }) => {
-  
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(data.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = Math.min(startIndex + rowsPerPage, data.length);
+  const displayedData = data.slice(startIndex, endIndex);
+
   const handleDownload = () => {
     // CSV Header
     const headers = ['ID', 'Date', 'Source', 'Type', 'Headline', 'Relevance Score', 'URL'];
-    
+
     // Convert data to CSV row strings
     const rows = data.map(item => {
       // Escape quotes in headline/snippet for CSV validity
@@ -29,7 +37,7 @@ const DataPreview: React.FC<Props> = ({ data, onProceed }) => {
     });
 
     const csvContent = [headers.join(','), ...rows].join('\n');
-    
+
     // Create blob and trigger download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -39,6 +47,19 @@ const DataPreview: React.FC<Props> = ({ data, onProceed }) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handlePrevPage = () => {
+    setCurrentPage(prev => Math.max(1, prev - 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+  };
+
+  const handleRowsPerPageChange = (value: number) => {
+    setRowsPerPage(value);
+    setCurrentPage(1); // Reset to first page when changing rows per page
   };
 
   return (
@@ -58,6 +79,27 @@ const DataPreview: React.FC<Props> = ({ data, onProceed }) => {
         </div>
       </div>
 
+      {/* Rows per page slider */}
+      <div className="mb-4 bg-slate-900 border border-slate-800 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-mono text-slate-400 uppercase">Rows per page</label>
+          <span className="text-sm font-bold text-white">{rowsPerPage}</span>
+        </div>
+        <input
+          type="range"
+          min="10"
+          max="200"
+          step="10"
+          value={rowsPerPage}
+          onChange={(e) => handleRowsPerPageChange(parseInt(e.target.value))}
+          className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500"
+        />
+        <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+          <span>10</span>
+          <span>200</span>
+        </div>
+      </div>
+
       <div className="flex-1 overflow-hidden bg-slate-900 border border-slate-800 rounded-lg">
         <div className="overflow-x-auto h-full custom-scrollbar">
           <table className="w-full text-left border-collapse">
@@ -71,26 +113,26 @@ const DataPreview: React.FC<Props> = ({ data, onProceed }) => {
               </tr>
             </thead>
             <tbody className="text-xs text-slate-400 font-mono divide-y divide-slate-800">
-              {data.map((item) => (
+              {displayedData.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-800/50 transition-colors">
                   <td className="p-3 text-blue-400">{item.source}</td>
                   <td className="p-3">{item.date}</td>
                   <td className="p-3 font-sans text-slate-300 font-medium">
                     <span className={`text-[10px] px-1.5 py-0.5 rounded mr-2 border ${item.type === 'TRIGGER_EVENT' ? 'bg-red-900/30 border-red-800 text-red-300' : 'bg-blue-900/30 border-blue-800 text-blue-300'}`}>
-                        {item.type === 'TRIGGER_EVENT' ? 'CAPTURE' : 'CRIME'}
+                      {item.type === 'TRIGGER_EVENT' ? 'CAPTURE' : 'CRIME'}
                     </span>
-                    {item.headline}
+                    {item.headline || <span className="text-slate-600 italic">(empty)</span>}
                   </td>
                   <td className="p-3 text-center">
                     <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-blue-400 transition-colors">
-                        <ExternalLink size={14} />
+                      <ExternalLink size={14} />
                     </a>
                   </td>
                   <td className="p-3">
                     <div className="flex items-center gap-2">
                       <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-green-500" 
+                        <div
+                          className="h-full bg-green-500"
                           style={{ width: `${item.relevance_score * 100}%` }}
                         ></div>
                       </div>
@@ -102,6 +144,31 @@ const DataPreview: React.FC<Props> = ({ data, onProceed }) => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Pagination controls */}
+      <div className="mt-4 flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3">
+        <button
+          onClick={handlePrevPage}
+          disabled={currentPage === 1}
+          className="flex items-center gap-1 px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 text-xs font-mono transition-colors"
+        >
+          <ChevronLeft size={14} /> PREV
+        </button>
+
+        <div className="text-xs font-mono text-slate-400">
+          Showing <span className="text-white font-bold">{startIndex + 1}</span> to <span className="text-white font-bold">{endIndex}</span> of <span className="text-white font-bold">{data.length}</span> records
+          <span className="mx-2">•</span>
+          Page <span className="text-white font-bold">{currentPage}</span> of <span className="text-white font-bold">{totalPages}</span>
+        </div>
+
+        <button
+          onClick={handleNextPage}
+          disabled={currentPage === totalPages}
+          className="flex items-center gap-1 px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 text-xs font-mono transition-colors"
+        >
+          NEXT <ChevronRight size={14} />
+        </button>
       </div>
 
       <div className="mt-6 flex justify-between">

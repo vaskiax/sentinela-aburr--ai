@@ -263,7 +263,12 @@ async def upload_data(file: UploadFile = File(...), forecast_horizon: int = Form
     global scraped_data, current_stage, scrape_stats, current_config
     
     try:
+        print(f"[UPLOAD] Starting file upload: {file.filename}", flush=True)
+        print(f"[UPLOAD] Parameters: forecast_horizon={forecast_horizon}, granularity={granularity}", flush=True)
+        
         df = pd.read_csv(file.file)
+        print(f"[UPLOAD] Successfully read CSV with {len(df)} rows and columns: {df.columns.tolist()}", flush=True)
+        
         # Validar columnas necesarias (Flexible check)
         # We expect at least Date, Type, Headline/Text
         required_cols = ['Date', 'Type', 'Headline']
@@ -273,16 +278,50 @@ async def upload_data(file: UploadFile = File(...), forecast_horizon: int = Form
         # Convertir DataFrame a lista de ScrapedItem
         items = []
         for i, row in df.iterrows():
-            items.append(ScrapedItem(
-                id=f"upload_{i}",
-                date=str(row['Date']),
-                source=row.get('Source', 'Upload'),
-                type=row['Type'],
-                headline=row['Headline'],
-                snippet=row.get('Snippet', ''),
-                relevance_score=float(row.get('Relevance Score', 1.0)),
-                url=row.get('URL', f"upload://row_{i}")
-            ))
+            try:
+                # Handle NaN values - convert to empty string or default value
+                headline = row.get('Headline', '')
+                if pd.isna(headline):
+                    headline = ''
+                
+                source = row.get('Source', 'Upload')
+                if pd.isna(source):
+                    source = 'Upload'
+                
+                type_val = row.get('Type', 'TRIGGER_EVENT')
+                if pd.isna(type_val):
+                    type_val = 'TRIGGER_EVENT'
+                
+                url = row.get('URL', f"upload://row_{i}")
+                if pd.isna(url):
+                    url = f"upload://row_{i}"
+                
+                # Use Headline for snippet if Snippet column doesn't exist
+                snippet_text = row.get('Snippet', headline)
+                if pd.isna(snippet_text):
+                    snippet_text = headline if not pd.isna(headline) else ''
+                
+                relevance = row.get('Relevance Score', 1.0)
+                if pd.isna(relevance):
+                    relevance = 1.0
+                
+                item = ScrapedItem(
+                    id=f"upload_{i}",
+                    date=str(row['Date']),
+                    source=str(source),
+                    type=str(type_val),
+                    headline=str(headline),
+                    snippet=str(snippet_text),
+                    relevance_score=float(relevance),
+                    url=str(url)
+                )
+                items.append(item)
+            except Exception as row_error:
+                print(f"[UPLOAD] Error processing row {i}: {row_error}", flush=True)
+                print(f"[UPLOAD] Row data: {row.to_dict()}", flush=True)
+                raise
+        
+        print(f"[UPLOAD] Successfully converted {len(items)} rows to ScrapedItem objects", flush=True)
         
         scraped_data = items
         # Crear estadísticas de limpieza simuladas
@@ -316,10 +355,17 @@ async def upload_data(file: UploadFile = File(...), forecast_horizon: int = Form
         add_log(PipelineStage.CONFIGURATION, f"Successfully uploaded and parsed {len(items)} records.")
         add_log(PipelineStage.DATA_PREVIEW, f"Data ready for preview. Training params: horizon={forecast_horizon}d, granularity={granularity}")
         
+        print(f"[UPLOAD] Upload completed successfully", flush=True)
         return {"status": "success", "item_count": len(items)}
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+        import traceback
+        error_detail = f"Failed to process file: {str(e)}"
+        print(f"[UPLOAD] ERROR: {error_detail}", flush=True)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=error_detail)
 
 @app.post("/api/predict")
 async def run_prediction(items: List[ScrapedItem]):

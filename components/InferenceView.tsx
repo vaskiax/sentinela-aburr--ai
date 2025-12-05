@@ -316,20 +316,75 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
 
                         {prediction ? (
                             <div className="flex-1 flex flex-col justify-center items-center text-center space-y-6 animate-in fade-in zoom-in duration-300">
-                                <div>
-                                    <div className="text-xs text-slate-500 uppercase font-bold mb-1">Predicted Crime Volume</div>
-                                    <div className="text-5xl font-black text-white tracking-tight">
-                                        {prediction.predicted_crime_volume}
-                                    </div>
-                                    <div className="text-sm text-slate-400 mt-1">incidents</div>
 
+                                {/* ALERTA DE DATOS INSUFICIENTES */}
+                                {prediction.warning_message && (
+                                    <div className="w-full bg-amber-900/20 border border-amber-500/50 p-3 rounded-lg flex items-start gap-3 text-left animate-pulse">
+                                        <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={16} />
+                                        <div>
+                                            <p className="text-xs font-bold text-amber-200">Precaución: Ventana de Datos Incompleta</p>
+                                            <p className="text-[10px] text-amber-300/80">{prediction.warning_message}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* SCORE PRINCIPAL */}
+                                <div>
+                                    <div className="text-xs text-slate-500 uppercase font-bold mb-1">Índice de Riesgo Global</div>
+                                    <div className={`text-6xl font-black tracking-tight ${prediction.risk_score > 70 ? 'text-red-500' :
+                                        prediction.risk_score > 30 ? 'text-orange-500' : 'text-emerald-500'
+                                        }`}>
+                                        {prediction.risk_score}
+                                    </div>
+                                    <div className="text-xs text-slate-400 mt-2">Escala Normalizada 0-100</div>
+                                </div>
+
+                                {/* DESGLOSE COMPARATIVO (PERAS CON PERAS) */}
+                                <div className="grid grid-cols-2 gap-4 w-full">
+                                    {/* Riesgo del Modelo */}
+                                    <div className="bg-slate-950 p-3 rounded border border-slate-800 relative overflow-hidden text-left">
+                                        <div className="flex justify-between items-end z-10 relative mb-1">
+                                            <span className="text-[10px] text-slate-400 uppercase font-bold">Model Risk</span>
+                                            <span className="text-xl font-bold text-blue-400">{prediction.model_risk_score}</span>
+                                        </div>
+                                        <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden z-10 relative">
+                                            <div className="h-full bg-blue-500" style={{ width: `${prediction.model_risk_score}%` }}></div>
+                                        </div>
+                                        <p className="text-[9px] text-slate-600 mt-2 z-10 relative leading-tight">
+                                            Proyección vs. Máx. Histórico
+                                        </p>
+                                    </div>
+
+                                    {/* Riesgo de Zonas */}
+                                    <div className="bg-slate-950 p-3 rounded border border-slate-800 relative overflow-hidden text-left">
+                                        <div className="flex justify-between items-end z-10 relative mb-1">
+                                            <span className="text-[10px] text-slate-400 uppercase font-bold">Zonas (Act.)</span>
+                                            <span className="text-xl font-bold text-purple-400">{prediction.zone_risk_score}</span>
+                                        </div>
+                                        <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden z-10 relative">
+                                            <div className="h-full bg-purple-500" style={{ width: `${prediction.zone_risk_score}%` }}></div>
+                                        </div>
+                                        <p className="text-[9px] text-slate-600 mt-2 z-10 relative leading-tight">
+                                            Mención actual vs. Pico Histórico
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Crime Volume Display */}
+                                <div className="text-center pt-2 border-t border-slate-800">
+                                    <div className="text-xs text-slate-500 uppercase font-bold mb-1">Volumen Proyectado</div>
+                                    <div className="text-3xl font-black text-white">{prediction.predicted_crime_volume}</div>
+                                    <div className="text-xs text-slate-400">incidentes</div>
+                                </div>
+
+                                <div>
                                     {/* Dynamic Explanation */}
                                     <div className="mt-4 p-3 bg-slate-950 rounded border border-slate-800 text-xs text-slate-300 leading-relaxed">
                                         {(() => {
                                             const volume = prediction.predicted_crime_volume;
                                             const forecastDays = inputStats.forecastHorizon;
                                             const granularity = prediction.model_metadata?.granularity || 'W';
-                                            
+
                                             // Get ACTUAL values from model metadata (what was used during training/feature engineering)
                                             const horizonUnits = prediction.model_metadata?.horizon_units ?? 1;
                                             const horizonDays = prediction.model_metadata?.horizon_days ?? forecastDays;
@@ -372,7 +427,12 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
                                                     {analysisWindow && (
                                                         <> from <strong className="text-blue-400">{analysisWindow.start}</strong> to <strong className="text-blue-400">{analysisWindow.end}</strong></>
                                                     )}, the model projects a <strong className={trendColor}>{trend} trend</strong> of criminality
-                                                    over the next <strong className="text-purple-400">{forecastDays} days</strong>.
+                                                    over the next <strong className="text-purple-400">
+                                                        {horizonUnits} {
+                                                            horizonSuffix === 'm' ? 'months' :
+                                                                horizonSuffix === 'w' ? 'weeks' : 'days'
+                                                        }
+                                                    </strong>.
                                                 </>
                                             );
                                         })()}
@@ -382,7 +442,12 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
                                 <div className="grid grid-cols-2 gap-4 w-full">
                                     <div className="bg-slate-950 p-3 rounded border border-slate-800">
                                         <div className="text-[10px] text-slate-500 uppercase">Horizon</div>
-                                        <div className="text-lg font-bold text-blue-400">{prediction.forecast_horizon} Days</div>
+                                        <div className="text-lg font-bold text-blue-400">
+                                            {prediction.model_metadata?.horizon_units} {
+                                                prediction.model_metadata?.horizon_suffix === 'm' ? 'Months' :
+                                                    prediction.model_metadata?.horizon_suffix === 'w' ? 'Weeks' : 'Days'
+                                            }
+                                        </div>
                                     </div>
                                     <div className="bg-slate-950 p-3 rounded border border-slate-800">
                                         <div className="text-[10px] text-slate-500 uppercase">Status</div>
@@ -402,13 +467,15 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
 
             {/* DataFrame Sample */}
             {prediction && prediction.inference_data_sample && (
-                <DataFrameViewer
-                    data={prediction.inference_data_sample}
-                    fullData={prediction.inference_data_full}
-                    title="Inference Data"
-                    description="Showing last 10 rows | Download button exports complete dataset"
-                    highlightTarget={false}
-                />
+                <div className="mt-8">
+                    <DataFrameViewer
+                        data={prediction.inference_data_sample}
+                        fullData={prediction.inference_data_full}
+                        title="Inference Data"
+                        description="Showing last 10 rows | Download button exports complete dataset"
+                        highlightTarget={false}
+                    />
+                </div>
             )}
 
             {/* Footer: Download & Dashboard */}

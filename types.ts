@@ -63,10 +63,15 @@ export interface ModelMetadata {
   horizon_days?: number; // Number of days for lookback window
   horizon_units?: number; // Number of periods (e.g., 2 for 2 weeks)
   horizon_suffix?: string; // 'd' | 'w' | 'm'
+  // Calibración dinámica
+  max_observed_crimes?: number;  // Máximo volumen histórico
+  max_observed_zone_activity?: number;  // Máxima actividad de zona histórica
 }
 
 export interface PredictionResult {
   risk_score: number;
+  model_risk_score: number;  // NUEVO: desglose del riesgo del modelo
+  zone_risk_score: number;  // NUEVO: desglose del riesgo de zona
   expected_crime_type: string;
   affected_zones: string[];
   duration_days: number;
@@ -77,6 +82,7 @@ export interface PredictionResult {
   training_metrics: TrainingMetrics;
   model_comparison?: Array<{ model: string; rmse: number }>;
   model_metadata?: ModelMetadata;
+  warning_message?: string;  // NUEVO: alerta si datos insuficientes
 }
 
 export interface ProcessingLog {

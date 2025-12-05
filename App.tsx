@@ -321,8 +321,12 @@ function App() {
               <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg relative overflow-hidden">
                 <p className="text-[10px] text-slate-500 font-mono mb-1 uppercase">Violence Risk Index</p>
                 <div className="text-4xl font-bold text-white">{result?.risk_score ?? '--'}</div>
-                <div className={`text-xs mt-1 font-bold ${(result?.risk_score ?? 0) > 70 ? 'text-red-500' : 'text-orange-500'}`}>
-                  {(result?.risk_score ?? 0) > 70 ? 'CRITICAL LEVEL' : 'ELEVATED LEVEL'}
+                <div className={`text-xs mt-1 font-bold ${result?.risk_level === 'CRITICAL' ? 'text-red-500' :
+                  result?.risk_level === 'HIGH' ? 'text-orange-500' :
+                    result?.risk_level === 'ELEVATED' ? 'text-yellow-500' :
+                      result?.risk_level === 'MODERATE' ? 'text-blue-500' : 'text-green-500'
+                  }`}>
+                  {result?.risk_level ? `${result.risk_level} LEVEL` : '--'}
                 </div>
               </div>
               <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg col-span-2">
@@ -337,7 +341,13 @@ function App() {
               </div>
               <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg">
                 <p className="text-[10px] text-slate-500 font-mono mb-1 uppercase">Forecast Duration</p>
-                <div className="text-4xl font-bold text-white">{result?.duration_days ?? '--'} <span className="text-sm font-normal text-slate-500">Days</span></div>
+                <div className="text-4xl font-bold text-white">
+                  {result?.model_metadata?.horizon_units ?? result?.duration_days ?? '--'}
+                  <span className="text-sm font-normal text-slate-500 ml-1">
+                    {result?.model_metadata?.horizon_suffix === 'm' ? 'Months' :
+                      result?.model_metadata?.horizon_suffix === 'w' ? 'Weeks' : 'Days'}
+                  </span>
+                </div>
               </div>
             </div>
 

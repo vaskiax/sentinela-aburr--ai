@@ -12,6 +12,7 @@ from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_squared_error
 from .models import PredictionResult, TrainingMetrics, ScrapingConfig, ModelMetadata, ScrapedItem
+from .risk_levels import get_risk_level
 
 class Predictor:
     def __init__(self):
@@ -28,6 +29,42 @@ class Predictor:
         # Use absolute path to ensure model can be found regardless of working directory
         backend_dir = os.path.dirname(os.path.abspath(__file__))
         self.model_path = os.path.join(backend_dir, "data", "sentinela_model.joblib")
+
+    def _get_historical_max_zone_activity(self, df: pd.DataFrame, window_days: int = 14) -> float:
+        """
+        Escanea el historial para encontrar el pico máximo de menciones que CUALQUIER zona
+        ha tenido en CUALQUIER ventana móvil de 'window_days'.
+        Esto establece el '100% de riesgo' basado en la realidad histórica.
+        """
+        triggers = df[df['type'] == 'TRIGGER_EVENT'].copy()
+        if triggers.empty:
+            return 10.0  # Fallback por defecto
+
+        # Contar menciones de zonas por día
+        daily_zone_counts = []
+        for date in sorted(triggers['date'].unique()):
+            day_text = " ".join(triggers[triggers['date'] == date]['text'].tolist()).lower()
+            zone_counts = {}
+            for zone in self.known_zones:
+                zone_lower = zone.lower()
+                count = day_text.count(zone_lower)
+                if count > 0:
+                    zone_counts[zone] = count
+            if zone_counts:
+                daily_zone_counts.append({"date": date, **zone_counts})
+        
+        if not daily_zone_counts:
+            return 10.0
+
+        zone_df = pd.DataFrame(daily_zone_counts).set_index('date').fillna(0)
+        
+        # Aplicar Rolling Window (suma de menciones en los últimos X días)
+        rolling_zone_df = zone_df.rolling(window=f'{window_days}D', min_periods=1).sum()
+        
+        # El valor máximo que CUALQUIER zona haya alcanzado en la historia
+        historical_max = rolling_zone_df.max().max()
+        
+        return float(historical_max) if historical_max > 5 else 5.0  # Mínimo 5 para evitar divisiones locas
 
     def train_and_predict(self, config: ScrapingConfig, items: List[ScrapedItem]) -> PredictionResult:
         """
@@ -124,17 +161,21 @@ class Predictor:
         last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}']].iloc[-1:]
         predicted_crime_volume = self.best_model.predict(last_features)[0]
 
-        max_observed_crimes = y.max() if not y.empty else 30
-        # Model-based risk (Future Volume)
+        # --- NUEVO: CALIBRACIÓN DINÁMICA ---
+        # 1. Máximo Volumen del Modelo (Target Y histórico)
+        max_observed_crimes = float(y.max()) if not y.empty else 30.0
+        
+        # 2. Máxima Actividad de Zona (Heurística Histórica basada en data real)
+        max_observed_zone_activity = self._get_historical_max_zone_activity(df, window_days=14)
+        print(f"[Training] Calibrated Max Zone Activity: {max_observed_zone_activity}")
+
+        # A. Riesgo del Modelo (Normalizado contra máximo histórico)
         model_risk = min(99.0, (predicted_crime_volume / max_observed_crimes) * 100 if max_observed_crimes > 0 else 50.0)
 
-        # Calculate Zone Risks first to use in Global Risk
-        zone_risks = self._calculate_zone_risks(df, model_risk)
+        # B. Riesgo de Zona (Normalizado contra el PEOR caso histórico, no contra 10 fijo)
+        zone_risks, max_zone_risk = self._calculate_zone_risks(df, benchmark_max=max_observed_zone_activity)
         
-        # Heuristic Risk (Current Activity) - Max risk of any single zone
-        max_zone_risk = max([z['risk'] for z in zone_risks]) if zone_risks else 0
-        
-        # Final Global Risk is the HIGHER of the two (Conservative approach)
+        # C. Riesgo Global (MAX de los dos)
         final_risk_score = max(model_risk, max_zone_risk)
 
         full_series_predictions = self.best_model.predict(X)
@@ -171,7 +212,7 @@ class Predictor:
             joblib.dump(self.best_model, self.model_path)
             print(f"[Predictor] Model '{self.best_model_name}' saved to {self.model_path}")
             
-            # Also save model metadata for inference (granularity, horizon, etc.)
+            # Also save model metadata for inference (granularity, horizon, calibration, etc.)
             import json
             metadata_path = self.model_path.replace('.joblib', '_metadata.json')
             metadata = {
@@ -179,7 +220,9 @@ class Predictor:
                 'horizon_days': horizon_days,
                 'horizon_units': horizon_units,
                 'horizon_suffix': suffix,
-                'model_name': self.best_model_name
+                'model_name': self.best_model_name,
+                'max_observed_crimes': max_observed_crimes,  # NUEVO: calibración del modelo
+                'max_observed_zone_activity': max_observed_zone_activity  # NUEVO: calibración de zonas
             }
             with open(metadata_path, 'w') as f:
                 json.dump(metadata, f)
@@ -189,6 +232,10 @@ class Predictor:
 
         return PredictionResult(
             risk_score=round(float(final_risk_score), 1),
+            model_risk_score=round(float(model_risk), 1),  # NUEVO: desglose del riesgo del modelo
+            zone_risk_score=round(float(max_zone_risk), 1),  # NUEVO: desglose del riesgo de zona
+            risk_level=get_risk_level(final_risk_score),  # NUEVO: clasificación categórica
+            predicted_crime_volume=round(float(predicted_crime_volume), 2),  # NUEVO: volumen crudo
             expected_crime_type=f"Volume: {round(float(predicted_crime_volume), 1)} incidents",
             affected_zones=self._extract_recent_zones(df),
             duration_days=int(horizon_days),
@@ -217,7 +264,12 @@ class Predictor:
                 model_type=f"Supervised Time-Series Regression ({self.best_model_name})",
                 data_period_start=str(model_data.index.min().date()),
                 data_period_end=str(model_data.index.max().date()),
-                granularity=granularity
+                granularity=granularity,
+                horizon_days=horizon_days,
+                horizon_units=horizon_units,
+                horizon_suffix=suffix,
+                max_observed_crimes=max_observed_crimes,  # NUEVO: calibración
+                max_observed_zone_activity=max_observed_zone_activity  # NUEVO: calibración
             ),
             training_data_sample=training_data_sample,
             test_data_sample=test_data_sample,
@@ -257,7 +309,8 @@ class Predictor:
             {
                 "date": pd.to_datetime(item.date, errors='coerce'),
                 "type": item.type,
-                "relevance": item.relevance_score
+                "relevance": item.relevance_score,
+                "text": item.headline or item.snippet or ""
             }
             for item in new_items
         ])
@@ -273,18 +326,37 @@ class Predictor:
         
         if triggers_df.empty:
              print(f"[Predictor] WARNING: No trigger events found in input data!")
-             return {
-                "predicted_crime_volume": 0,
-                "forecast_horizon": getattr(config, 'forecast_horizon', 7) or 7,
-                "status": "warning",
-                "message": "No trigger events found in input data.",
-                "model_metadata": {
-                    "granularity": training_metadata.get('granularity', getattr(config, 'granularity', 'W')),
-                    "horizon_days": getattr(config, 'forecast_horizon', 7) or 7,
-                    "horizon_units": 0,
-                    "horizon_suffix": 'd'
-                }
-            }
+             max_observed_crimes = training_metadata.get('max_observed_crimes', 30.0)
+             max_observed_zone_activity = training_metadata.get('max_observed_zone_activity', 10.0)
+             return PredictionResult(
+                risk_score=0,
+                model_risk_score=0,
+                zone_risk_score=0,
+                risk_level="LOW",
+                predicted_crime_volume=0.0,
+                expected_crime_type="No data",
+                affected_zones=[],
+                duration_days=7,
+                confidence_interval=(0.0, 10.0),
+                feature_importance=[],
+                timeline_data=[],
+                zone_risks=[],
+                training_metrics=TrainingMetrics(accuracy=0, precision=0, recall=0, f1_score=0, confusion_matrix=[], dataset_size=0, test_set_size=0),
+                model_metadata=ModelMetadata(
+                    regressors=[],
+                    targets=[],
+                    training_steps=[],
+                    model_type="Inference",
+                    granularity=training_metadata.get('granularity', getattr(config, 'granularity', 'W')),
+                    horizon_days=getattr(config, 'forecast_horizon', 7) or 7,
+                    horizon_units=0,
+                    horizon_suffix='d',
+                    max_observed_crimes=max_observed_crimes,
+                    max_observed_zone_activity=max_observed_zone_activity
+                ),
+                status="warning",
+                warning_message="No trigger events found in input data."
+            )
 
         # Use granularity from training (stored metadata), not from config
         # This ensures consistency between training and inference feature engineering
@@ -319,18 +391,37 @@ class Predictor:
         # Usar el último dato disponible para la predicción
         if features_df.empty:
              print(f"[Predictor] ERROR: Features dataframe is empty after engineering!")
-             return {
-                "predicted_crime_volume": 0,
-                "forecast_horizon": horizon_days,
-                "status": "warning",
-                "message": "Insufficient data for feature engineering.",
-                "model_metadata": {
-                    "granularity": granularity,
-                    "horizon_days": horizon_days,
-                    "horizon_units": horizon_units,
-                    "horizon_suffix": suffix
-                }
-            }
+             max_observed_crimes = training_metadata.get('max_observed_crimes', 30.0)
+             max_observed_zone_activity = training_metadata.get('max_observed_zone_activity', 10.0)
+             return PredictionResult(
+                risk_score=0,
+                model_risk_score=0,
+                zone_risk_score=0,
+                risk_level="LOW",
+                predicted_crime_volume=0.0,
+                expected_crime_type="Insufficient data",
+                affected_zones=[],
+                duration_days=horizon_days,
+                confidence_interval=(0.0, 10.0),
+                feature_importance=[],
+                timeline_data=[],
+                zone_risks=[],
+                training_metrics=TrainingMetrics(accuracy=0, precision=0, recall=0, f1_score=0, confusion_matrix=[], dataset_size=0, test_set_size=0),
+                model_metadata=ModelMetadata(
+                    regressors=[],
+                    targets=[],
+                    training_steps=[],
+                    model_type="Inference",
+                    granularity=granularity,
+                    horizon_days=horizon_days,
+                    horizon_units=horizon_units,
+                    horizon_suffix=suffix,
+                    max_observed_crimes=max_observed_crimes,
+                    max_observed_zone_activity=max_observed_zone_activity
+                ),
+                status="warning",
+                warning_message="Insufficient data for feature engineering."
+            )
 
         last_features = features_df[[f'triggers_last_{horizon_units}{suffix}', f'relevance_last_{horizon_units}{suffix}']].iloc[-1:]
         
@@ -348,6 +439,31 @@ class Predictor:
         print(f"[Predictor] Predicted crime volume: {predicted_volume}")
         print(f"[Predictor] =====================================")
 
+        # --- NUEVO: CALIBRACIÓN DINÁMICA EN INFERENCIA ---
+        # Recuperar valores de calibración del entrenamiento
+        max_observed_crimes = training_metadata.get('max_observed_crimes', 30.0)
+        max_observed_zone_activity = training_metadata.get('max_observed_zone_activity', 10.0)
+        
+        # CHECK DE DATA SCARCITY (Advertencia de Lag)
+        warning_msg = None
+        if not df.empty:
+            data_duration_days = (df['date'].max() - df['date'].min()).days
+            horizon_days_needed = training_metadata.get('horizon_days', 7)
+            
+            # Si tengo menos días de historia que los que el modelo necesita para mirar atrás
+            if data_duration_days < horizon_days_needed:
+                warning_msg = f"ADVERTENCIA: Datos insuficientes. Tienes {data_duration_days} días de historia, pero el modelo requiere una ventana de {horizon_days_needed} días. El riesgo podría estar subestimado."
+                print(f"[Predictor] Data Scarcity Warning: {warning_msg}")
+
+        # 1. Riesgo del Modelo (Dinámico, normalizado)
+        model_risk = min(99.0, (predicted_volume / max_observed_crimes) * 100 if max_observed_crimes > 0 else 50.0)
+        
+        # 2. Riesgo de Zona (Dinámico usando el benchmark histórico)
+        zone_risks, max_zone_risk_val = self._calculate_zone_risks(df, benchmark_max=max_observed_zone_activity)
+
+        # 3. Global
+        final_risk_score = max(model_risk, max_zone_risk_val)
+
         # Export inference data sample for visualization (last 10 rows)
         inference_sample = features_df.copy()
         inference_sample['date'] = inference_sample.index.astype(str)
@@ -358,70 +474,102 @@ class Predictor:
         inference_full['date'] = inference_full.index.astype(str)
         inference_data_full = inference_full.reset_index(drop=True).to_dict('records')
 
-        return {
-            "predicted_crime_volume": round(float(predicted_volume), 2),
-            "forecast_horizon": horizon_days,
-            "status": "success",
-            "inference_data_sample": inference_data_sample,
-            "inference_data_full": inference_data_full,
-            "model_metadata": {
-                "granularity": training_metadata.get('granularity', granularity),
-                "horizon_days": training_metadata.get('horizon_days', horizon_days),
-                "horizon_units": training_metadata.get('horizon_units', horizon_units),
-                "horizon_suffix": training_metadata.get('horizon_suffix', suffix)
-            }
-        }
+        # Retornar como PredictionResult (no dict) para que FastAPI lo serialice correctamente
+        return PredictionResult(
+            risk_score=round(float(final_risk_score), 1),
+            model_risk_score=round(float(model_risk), 1),
+            zone_risk_score=round(float(max_zone_risk_val), 1),
+            risk_level=get_risk_level(final_risk_score),
+            predicted_crime_volume=round(float(predicted_volume), 2),
+            expected_crime_type=f"Volume: {round(float(predicted_volume), 2)} incidents",
+            affected_zones=self._extract_recent_zones(df),
+            duration_days=horizon_days,
+            confidence_interval=(float(max(0, final_risk_score - 10)), float(min(100, final_risk_score + 10))),
+            feature_importance=[],  # No calculado en inferencia
+            timeline_data=[],  # No calculado en inferencia
+            zone_risks=zone_risks,
+            training_metrics=TrainingMetrics(
+                accuracy=0, precision=0, recall=0,
+                f1_score=0,
+                confusion_matrix=[], 
+                dataset_size=0,
+                test_set_size=0
+            ),
+            model_metadata=ModelMetadata(
+                regressors=[],
+                targets=[],
+                training_steps=[],
+                model_type="Inference",
+                granularity=training_metadata.get('granularity', granularity),
+                horizon_days=training_metadata.get('horizon_days', horizon_days),
+                horizon_units=training_metadata.get('horizon_units', horizon_units),
+                horizon_suffix=training_metadata.get('horizon_suffix', suffix),
+                max_observed_crimes=max_observed_crimes,
+                max_observed_zone_activity=max_observed_zone_activity
+            ),
+            status="success",
+            warning_message=warning_msg,
+            inference_data_sample=inference_data_sample,
+            inference_data_full=inference_data_full
+        )
+
 
     def _extract_recent_zones(self, df: pd.DataFrame) -> List[str]:
         # Helper to get zones from triggers in the last 14 days
+        if df.empty or 'text' not in df.columns:
+            return []
         recent_triggers = df[(df['type'] == 'TRIGGER_EVENT') & (df['date'] > df['date'].max() - pd.Timedelta(days=14))]
         zone_mentions = Counter()
         for text in recent_triggers['text']:
+            text_lower = str(text).lower()
             for zone in self.known_zones:
-                if zone.lower() in text:
+                if zone.lower() in text_lower:
                     zone_mentions[zone] += 1
         return [zone for zone, count in zone_mentions.most_common(5)]
 
-    def _calculate_zone_risks(self, df: pd.DataFrame, global_risk: float) -> List[dict]:
-        # Calculate risk for ALL known zones with MINIMUM baseline of 30
+    def _calculate_zone_risks(self, df: pd.DataFrame, benchmark_max: float = 10.0) -> Tuple[List[dict], float]:
+        """
+        Calcula el riesgo de zonas normalizando contra un benchmark histórico.
+        Retorna (zona_risks_list, max_zone_risk_score)
+        """
+        # Filtrar últimos 14 días de datos
+        if df.empty or 'text' not in df.columns:
+            return [], 0.0
+            
         recent_triggers = df[(df['type'] == 'TRIGGER_EVENT') & (df['date'] > df['date'].max() - pd.Timedelta(days=14))]
+        
+        if recent_triggers.empty:
+            return [], 0.0
+
         zone_mentions = Counter()
         for text in recent_triggers['text']:
+            text_lower = str(text).lower()
             for zone in self.known_zones:
-                if zone.lower() in text:
+                if zone.lower() in text_lower:
                     zone_mentions[zone] += 1
         
-        total_mentions = sum(zone_mentions.values())
         zone_risks = []
+        max_current_risk = 0.0
         
-        # BASELINE: All zones start at 30 (minimum risk)
-        BASELINE_RISK = 30
-        
+        # Normalización dinámica: (Actual / Peor_Caso_Histórico) * 100
         for zone in self.known_zones:
             count = zone_mentions.get(zone, 0)
-            
-            # ONLY include zones that were actually mentioned
-            if count == 0:
-                continue
-                
-            if total_mentions > 0:
-                zone_contribution = (count / total_mentions)
-                # Zone risk = BASELINE (30) + proportional share of remaining risk (0-70)
-                # If a zone has activity, it gets more of the 70-point range
-                additional_risk = zone_contribution * 70
-                zone_risk = BASELINE_RISK + additional_risk
-            else:
-                # No activity detected, all zones get baseline
-                zone_risk = BASELINE_RISK
-            
-            zone_risks.append({"zone": zone, "risk": min(99, round(zone_risk))})
-            
+            if count > 0:
+                risk = min(99.0, (count / benchmark_max) * 100 if benchmark_max > 0 else 50.0)
+                zone_risks.append({"zone": zone, "risk": round(risk, 1), "mentions": int(count)})
+                if risk > max_current_risk:
+                    max_current_risk = risk
+        
         # Sort by risk descending
-        return sorted(zone_risks, key=lambda x: x['risk'], reverse=True)
+        return sorted(zone_risks, key=lambda x: x['risk'], reverse=True), max_current_risk
 
     def _generate_heuristic_result(self, config, items, message="Insufficient Data for ML") -> PredictionResult:
         return PredictionResult(
             risk_score=10,
+            model_risk_score=10,
+            zone_risk_score=0,
+            risk_level="MODERATE",
+            predicted_crime_volume=0.0,
             expected_crime_type=message,
             affected_zones=[],
             duration_days=0,

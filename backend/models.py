@@ -79,9 +79,16 @@ class ModelMetadata(BaseModel):
     horizon_days: Optional[int] = None  # Number of days for lookback window
     horizon_units: Optional[int] = None  # Number of periods (e.g., 2 for 2 weeks)
     horizon_suffix: Optional[str] = None  # 'd' | 'w' | 'm'
+    # NUEVO: Calibración dinámica basada en historia
+    max_observed_crimes: Optional[float] = 30.0  # Máximo volumen de crímenes en historia
+    max_observed_zone_activity: Optional[float] = 10.0  # Máxima actividad de zona en historia
 
 class PredictionResult(BaseModel):
-    risk_score: float
+    risk_score: float  # MAX(model_risk, zone_risk)
+    model_risk_score: float  # Desglose: Riesgo del modelo (0-100, normalizado)
+    zone_risk_score: float  # Desglose: Riesgo de zona (0-100, normalizado)
+    risk_level: str  # Clasificación: LOW, MODERATE, ELEVATED, HIGH, CRITICAL
+    predicted_crime_volume: float  # Volumen predicho por el modelo (número crudo)
     expected_crime_type: str
     affected_zones: List[str]
     duration_days: int
@@ -93,6 +100,7 @@ class PredictionResult(BaseModel):
     model_comparison: Optional[List[Dict[str, Any]]] = None # [{ model: "RF", f1: 0.8, acc: 0.85 }, ...]
     model_metadata: Optional[ModelMetadata] = None
     status: str = 'success'
+    warning_message: Optional[str] = None  # Alerta si datos insuficientes
     # DataFrame samples for visualization (10 rows)
     training_data_sample: Optional[List[Dict[str, Any]]] = None
     test_data_sample: Optional[List[Dict[str, Any]]] = None
