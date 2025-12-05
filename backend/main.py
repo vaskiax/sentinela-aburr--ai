@@ -62,7 +62,6 @@ scraper = Scraper(data_loader=DataLoader())
 predictor = Predictor()
 nlp = NLPProcessor()
 data_loader = DataLoader()
-data_loader = DataLoader()
 scrape_stats: Optional[CleaningStats] = None
 
 def add_log(stage: PipelineStage, message: str, status: str = 'success'):
@@ -97,7 +96,9 @@ async def set_config(config: ScrapingConfig):
 
 @app.get("/api/options")
 async def get_options():
-    return data_loader.get_options()
+    options = data_loader.get_options()
+    print(f"[OPTIONS] Returning {len(options.get('barrios', []))} barrios, {len(options.get('combos', []))} combos", flush=True)
+    return options
 
 async def run_scraping_task():
     import sys

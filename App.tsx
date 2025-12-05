@@ -388,11 +388,8 @@ function App() {
                     <div className="border-t border-red-700/20 pt-2">
                       <p className="text-xs text-slate-400">Aggregation Granularity:</p>
                       <div className="text-xl font-bold text-red-300">
-                        {result?.model_metadata?.horizon_units ?? '--'}
-                        <span className="text-sm font-normal text-slate-500 ml-1">
-                          {result?.model_metadata?.horizon_suffix === 'm' ? 'Month(s)' :
-                            result?.model_metadata?.horizon_suffix === 'w' ? 'Week(s)' : 'Day(s)'}
-                        </span>
+                        {result?.model_metadata?.granularity === 'M' ? 'Monthly' :
+                          result?.model_metadata?.granularity === 'W' ? 'Weekly' : 'Daily'}
                       </div>
                     </div>
                   </div>
