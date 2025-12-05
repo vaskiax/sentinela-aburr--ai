@@ -146,7 +146,7 @@ const PipelineConfig: React.FC<Props> = ({ config, setConfig, onStartPipeline })
     setConfig(prev => ({ ...prev, target_organizations: s ? orgItems : [] }));
   };
   const selectAllCombos = (s: boolean) => {
-    const comboItems = options.combos.length > 0 ? options.combos : MASTER_COMBOS_EXTENDED;
+    const comboItems = options.barrios.length > 0 ? options.barrios : (options.combos.length > 0 ? options.combos : MASTER_COMBOS_EXTENDED);
     setConfig(prev => ({ ...prev, local_combos: s ? comboItems : [] }));
   };
   const selectAllEvents = (s: boolean) => setConfig(prev => ({ ...prev, predictor_events: s ? MASTER_PREDICTOR_EVENTS : [] }));
@@ -290,8 +290,8 @@ const PipelineConfig: React.FC<Props> = ({ config, setConfig, onStartPipeline })
                 colorClass="bg-slate-700 border-slate-600"
               />
               <SelectionGroup
-                title="Local Combos"
-                items={options.combos.length > 0 ? options.combos : MASTER_COMBOS_EXTENDED}
+                title="Barrios"
+                items={options.barrios.length > 0 ? options.barrios : (options.combos.length > 0 ? options.combos : MASTER_COMBOS_EXTENDED)}
                 selected={config.local_combos}
                 onToggle={toggleCombo}
                 onSelectAll={selectAllCombos}

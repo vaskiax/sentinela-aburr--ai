@@ -54,3 +54,31 @@ class DataLoader:
     def get_combos_by_org(self, org_name: str) -> List[str]:
         if self.df is None: return []
         return self.df[self.df['estructura'] == org_name]['Combo/Banda'].tolist()
+
+    def get_barrio_index(self) -> List[Dict[str, Any]]:
+        """Return list of barrios with their comuna metadata.
+
+        Output schema: [{"barrio": str, "comuna_nombre": str, "comuna_numero": str}]
+        """
+        if self.df is None or self.df.empty:
+            return []
+
+        # Normalize columns
+        df = self.df.copy()
+        df['Barrio'] = df['Barrio'].astype(str).str.strip()
+        df['comuna_nombre'] = df['comuna_nombre'].astype(str).str.strip()
+        df['comuna_numero'] = df['comuna_numero'].astype(str).str.strip()
+
+        seen = set()
+        barrio_list = []
+        for _, row in df.iterrows():
+            key = row['Barrio'].lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            barrio_list.append({
+                "barrio": row['Barrio'],
+                "comuna_nombre": row['comuna_nombre'],
+                "comuna_numero": row['comuna_numero'],
+            })
+        return barrio_list

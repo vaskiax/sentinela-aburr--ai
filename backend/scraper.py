@@ -52,6 +52,12 @@ class Scraper:
         
         try:
             nlp = NLPProcessor()
+            # Provide barrio keywords (top unique barrios) to improve location-targeted queries
+            if self.data_loader:
+                barrio_idx = self.data_loader.get_barrio_index()
+                barrio_keywords = [b['barrio'] for b in barrio_idx][:50]
+                nlp.set_barrio_keywords(barrio_keywords)
+                print(f"[SCRAPER] Loaded {len(barrio_keywords)} barrio keywords for query building", file=sys.stderr, flush=True)
             print(f"[SCRAPER] NLPProcessor created, model available: {nlp.model is not None}", file=sys.stderr, flush=True)
             
             # AI Agent 1: Generate optimized search queries

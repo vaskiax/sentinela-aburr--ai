@@ -173,6 +173,10 @@ const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
                 });
                 const score = riskData ? riskData.risk : 0;
                 const mentions = riskData ? (riskData.mentions || 0) : 0;
+                const breakdown = (riskData && Array.isArray(riskData.breakdown)) ? riskData.breakdown.slice(0, 6) : [];
+                const breakdownText = breakdown.length
+                  ? breakdown.map(b => `${b.barrio}: ${b.mentions}`).join(' | ')
+                  : '';
                 let rowClass = "";
                 if (score > 80) rowClass = "text-red-400 font-bold bg-red-900/10";
                 else if (score > 60) rowClass = "text-orange-400 font-bold bg-orange-900/10";
@@ -180,7 +184,11 @@ const AburraMap: React.FC<AburraMapProps> = ({ zoneRisks }) => {
                 else if (score > 20) rowClass = "text-cyan-400 font-bold bg-cyan-900/10";
 
                 return (
-                  <tr key={z.id} className={`border-b border-slate-800 ${rowClass}`}>
+                  <tr
+                    key={z.id}
+                    className={`border-b border-slate-800 ${rowClass}`}
+                    title={breakdownText || undefined}
+                  >
                     <td className="py-1 px-1 font-mono">{z.id}</td>
                     <td className="py-1 px-1">{z.name}</td>
                     <td className="py-1 px-1 text-right">{mentions > 0 ? mentions : '-'}</td>

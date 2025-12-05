@@ -36,6 +36,10 @@ class NLPProcessor:
         self.pplx_key = pplx_key
         self.pplx_endpoint = "https://api.perplexity.ai/chat/completions"
         self.pplx_model = "sonar-pro"
+        self.barrio_keywords: List[str] = []
+
+    def set_barrio_keywords(self, barrios: List[str]):
+        self.barrio_keywords = barrios or []
 
     def build_search_queries(self, config) -> list[str]:
         """AI Agent: Construct intelligent search queries from user config."""
@@ -49,7 +53,12 @@ class NLPProcessor:
             for group in all_groups[:5]:
                 for event in (config.predictor_events or [])[:2]:
                     queries.append(f'"{group}" "{event}" Medellín')
+            # Add location-specific queries with barrios if available
+            barrio_locs = (self.barrio_keywords or [])[:8]
             for crime in (config.target_crimes or [])[:2]:
+                if barrio_locs:
+                    for b in barrio_locs:
+                        queries.append(f'"{crime}" "{b}" Medellín')
                 queries.append(f'"{crime}" Valle de Aburrá')
             print(f"[AI Query Builder] Generated {len(queries)} fallback queries: {queries}", file=sys.stderr, flush=True)
             return queries[:8] if queries else ['Medellín noticias judiciales']
@@ -74,16 +83,18 @@ class NLPProcessor:
             print(f"  - Events ({len(events_list)}): {events}", file=sys.stderr, flush=True)
             print(f"  - Crimes ({len(crimes_list)}): {crimes}", file=sys.stderr, flush=True)
             
+            barrios = ', '.join((self.barrio_keywords or [])[:25]) or 'Santo Domingo, Manrique, Robledo, Guayabal'
             prompt = f"""You are a search query expert for Colombian crime news. Generate up-to 50 precise search queries in Spanish to find:
 - Trigger events: {events} involving {ranks} from organizations: {orgs}, local combos: {combos}
 - Crime trends: {crimes} in Valle de Aburrá
+- Prioritize location keywords using these barrios/colonias: {barrios}
 
-Use the EXACT organization names, event types, ranks, and crimes provided above.
+Use the EXACT organization names, event types, ranks, crimes, and barrios provided above.
 Include queries for the entire date range starting from {config.date_range_start} to present.
-Generate a mix of specific queries (Org + Event) and broad queries (Crime + Location + Year).
+Generate a mix of specific queries (Org + Event + Barrio) and broad queries (Crime + Location + Year).
 Optimize for Colombian news sites (minuto30.com, elcolombiano.com, qhubomedellin.com).
 Return ONLY a JSON array of query strings, no explanation.
-Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle de Aburrá 2015-2020", "Aumento extorsión Bello 2024"]"""
+Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle de Aburrá 2015-2020", "Aumento extorsión Bello 2024", "Extorsión Guayabal 2024"]"""
 
             print(f"[AI Query Builder] Sending prompt to DeepSeek...", file=sys.stderr, flush=True)
             response = self.client.chat.completions.create(

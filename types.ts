@@ -82,7 +82,7 @@ export interface PredictionResult {
   confidence_interval: [number, number];
   feature_importance: Array<{ feature: string; importance: number }>;
   timeline_data: Array<{ day: string; risk_score: number }>;
-  zone_risks: Array<{ zone: string; risk: number }>;
+  zone_risks: Array<{ zone: string; risk: number; mentions?: number; breakdown?: Array<{ barrio: string; mentions: number }> }>;
   training_metrics: TrainingMetrics;
   model_comparison?: Array<{ model: string; rmse: number }>;
   model_metadata?: ModelMetadata;

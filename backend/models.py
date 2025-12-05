@@ -114,7 +114,7 @@ class PredictionResult(BaseModel):
     model_comparison: Optional[List[Dict[str, Any]]] = None  # Multi-model comparison
     feature_importance: List[Dict[str, Any]]  # { feature: string; importance: number }
     timeline_data: List[Dict[str, Any]]  # { day: string; risk_score: number }
-    zone_risks: List[Dict[str, Any]]  # { zone: string; risk: number }
+    zone_risks: List[Dict[str, Any]]  # { zone: string; risk: number; mentions?: int; breakdown?: List[{barrio, mentions}] }
     model_metadata: Optional[ModelMetadata] = None
     
     # === ESTADO Y ALERTAS ===

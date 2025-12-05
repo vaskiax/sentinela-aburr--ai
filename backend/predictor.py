@@ -13,16 +13,14 @@ from xgboost import XGBRegressor
 from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_squared_error
 from .models import PredictionResult, TrainingMetrics, ScrapingConfig, ModelMetadata, ScrapedItem
+from .data_loader import DataLoader
 
 class Predictor:
-    def __init__(self):
-        # Known zones in Medellin/Aburra Valley for mapping
-        self.known_zones = [
-            'Manrique', 'Aranjuez', 'Bello', 'Robledo', 'San Javier', 'Villa Hermosa', 'Belén',
-            'La Candelaria', 'La América', 'Castilla', 'Doce de Octubre', 'Buenos Aires',
-            'Poblado', 'Guayabal', 'Itagüí', 'Envigado', 'Sabaneta', 'Caldas', 'Barbosa',
-            'Girardota', 'Copacabana', 'La Estrella'
-        ]
+    def __init__(self, data_loader: DataLoader | None = None):
+        # Load barrio → comuna index
+        loader = data_loader or DataLoader()
+        self.barrio_index = loader.get_barrio_index()
+        self.comuna_set = sorted({b['comuna_nombre'] for b in self.barrio_index if b.get('comuna_nombre')})
         self.models = {}
         self.best_model_name = "None"
         self.best_model = None
@@ -30,41 +28,45 @@ class Predictor:
         backend_dir = os.path.dirname(os.path.abspath(__file__))
         self.model_path = os.path.join(backend_dir, "data", "sentinela_model.joblib")
 
+    def _count_barrio_mentions(self, text: str) -> Counter:
+        text_lower = str(text).lower()
+        counts = Counter()
+        for entry in self.barrio_index:
+            barrio = entry.get('barrio', '')
+            if not barrio:
+                continue
+            b_lower = str(barrio).lower()
+            c = text_lower.count(b_lower)
+            if c > 0:
+                counts[barrio] += c
+        return counts
+
     def _get_historical_max_zone_activity(self, df: pd.DataFrame, window_days: int = 14) -> float:
-        """
-        Escanea el historial para encontrar el pico máximo de menciones que CUALQUIER zona
-        ha tenido en CUALQUIER ventana móvil de 'window_days'.
-        Esto establece el '100% de riesgo' basado en la realidad histórica.
-        """
+        """Max rolling sum of mentions per comuna (using barrio mentions)."""
         triggers = df[df['type'] == 'TRIGGER_EVENT'].copy()
         if triggers.empty:
             return 10.0  # Fallback por defecto
 
-        # Contar menciones de zonas por día
         daily_zone_counts = []
         for date in sorted(triggers['date'].unique()):
-            day_text = " ".join(triggers[triggers['date'] == date]['text'].tolist()).lower()
-            zone_counts = {}
-            for zone in self.known_zones:
-                zone_lower = zone.lower()
-                count = day_text.count(zone_lower)
-                if count > 0:
-                    zone_counts[zone] = count
-            if zone_counts:
-                daily_zone_counts.append({"date": date, **zone_counts})
-        
+            day_text = " ".join(triggers[triggers['date'] == date]['text'].tolist())
+            barrio_counts = self._count_barrio_mentions(day_text)
+            comuna_counts: Dict[str, int] = {}
+            for barrio, cnt in barrio_counts.items():
+                comuna = next((b['comuna_nombre'] for b in self.barrio_index if b['barrio'] == barrio), None)
+                if not comuna:
+                    continue
+                comuna_counts[comuna] = comuna_counts.get(comuna, 0) + cnt
+            if comuna_counts:
+                daily_zone_counts.append({"date": date, **comuna_counts})
+
         if not daily_zone_counts:
             return 10.0
 
         zone_df = pd.DataFrame(daily_zone_counts).set_index('date').fillna(0)
-        
-        # Aplicar Rolling Window (suma de menciones en los últimos X días)
         rolling_zone_df = zone_df.rolling(window=f'{window_days}D', min_periods=1).sum()
-        
-        # El valor máximo que CUALQUIER zona haya alcanzado en la historia
         historical_max = rolling_zone_df.max().max()
-        
-        return float(historical_max) if historical_max > 5 else 5.0  # Mínimo 5 para evitar divisiones locas
+        return float(historical_max) if historical_max > 5 else 5.0
 
     def _calculate_risk_level(self, risk_score: float) -> str:
         """Calcula el nivel de riesgo textual basado en el score numérico (0-100)"""
@@ -669,51 +671,66 @@ class Predictor:
 
 
     def _extract_recent_zones(self, df: pd.DataFrame) -> List[str]:
-        # Helper to get zones from triggers in the last 14 days
+        # Helper to get zones (comunas) from triggers in the last 14 days using barrio mentions
         if df.empty or 'text' not in df.columns:
             return []
         recent_triggers = df[(df['type'] == 'TRIGGER_EVENT') & (df['date'] > df['date'].max() - pd.Timedelta(days=14))]
-        zone_mentions = Counter()
+        comuna_mentions: Dict[str, int] = {}
         for text in recent_triggers['text']:
-            text_lower = str(text).lower()
-            for zone in self.known_zones:
-                if zone.lower() in text_lower:
-                    zone_mentions[zone] += 1
-        return [zone for zone, count in zone_mentions.most_common(5)]
+            counts = self._count_barrio_mentions(text)
+            for barrio, cnt in counts.items():
+                comuna = next((b['comuna_nombre'] for b in self.barrio_index if b['barrio'] == barrio), None)
+                if not comuna:
+                    continue
+                comuna_mentions[comuna] = comuna_mentions.get(comuna, 0) + cnt
+        return [zona for zona, count in sorted(comuna_mentions.items(), key=lambda x: x[1], reverse=True)[:5]]
 
     def _calculate_zone_risks(self, df: pd.DataFrame, benchmark_max: float = 10.0) -> Tuple[List[dict], float]:
+        """Calcula riesgo por comuna usando menciones de barrios.
+
+        Retorna (lista_zone_risks, max_zone_risk_score) donde cada entrada incluye:
+        { zone: comuna, risk: %, mentions: total_menciones, breakdown: [{barrio, mentions}] }
         """
-        Calcula el riesgo de zonas normalizando contra un benchmark histórico.
-        Retorna (zona_risks_list, max_zone_risk_score)
-        """
-        # Filtrar últimos 14 días de datos
         if df.empty or 'text' not in df.columns:
             return [], 0.0
-            
+
         recent_triggers = df[(df['type'] == 'TRIGGER_EVENT') & (df['date'] > df['date'].max() - pd.Timedelta(days=14))]
-        
         if recent_triggers.empty:
             return [], 0.0
 
-        zone_mentions = Counter()
+        # Conteo por barrio y agregado a comuna
+        comuna_mentions: Dict[str, int] = {}
+        comuna_breakdown: Dict[str, Dict[str, int]] = {}
+
         for text in recent_triggers['text']:
-            text_lower = str(text).lower()
-            for zone in self.known_zones:
-                if zone.lower() in text_lower:
-                    zone_mentions[zone] += 1
-        
+            counts = self._count_barrio_mentions(text)
+            for barrio, cnt in counts.items():
+                comuna = next((b['comuna_nombre'] for b in self.barrio_index if b['barrio'] == barrio), None)
+                if not comuna:
+                    continue
+                comuna_mentions[comuna] = comuna_mentions.get(comuna, 0) + cnt
+                bd = comuna_breakdown.setdefault(comuna, {})
+                bd[barrio] = bd.get(barrio, 0) + cnt
+
         zone_risks = []
         max_current_risk = 0.0
-        
-        # Normalización dinámica: (Actual / Peor_Caso_Histórico) * 100
-        for zone in self.known_zones:
-            count = zone_mentions.get(zone, 0)
+
+        for comuna in self.comuna_set:
+            count = comuna_mentions.get(comuna, 0)
             risk = min(99.0, (count / benchmark_max) * 100 if benchmark_max > 0 else 50.0) if count > 0 else 0.0
-            zone_risks.append({"zone": zone, "risk": round(risk, 1), "mentions": int(count)})
+            breakdown_list = [
+                {"barrio": b, "mentions": m}
+                for b, m in sorted(comuna_breakdown.get(comuna, {}).items(), key=lambda x: x[1], reverse=True)
+            ]
+            zone_risks.append({
+                "zone": comuna,
+                "risk": round(risk, 1),
+                "mentions": int(count),
+                "breakdown": breakdown_list
+            })
             if risk > max_current_risk:
                 max_current_risk = risk
-        
-        # Sort by risk descending
+
         return sorted(zone_risks, key=lambda x: x['risk'], reverse=True), max_current_risk
 
     def _generate_heuristic_result(self, config, items, message="Insufficient Data for ML") -> PredictionResult:
