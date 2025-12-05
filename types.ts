@@ -67,6 +67,8 @@ export interface ModelMetadata {
   // Calibración dinámica
   max_observed_crimes?: number;  // Máximo volumen histórico
   max_observed_zone_activity?: number;  // Máxima actividad de zona histórica
+  rmse?: number;  // Root Mean Squared Error from training
+  winning_model?: string;  // Original model name (e.g., 'XGBoost Regressor')
 }
 
 export interface PredictionResult {

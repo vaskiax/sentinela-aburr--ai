@@ -303,55 +303,97 @@ async def get_result():
     
     # If we have a cached prediction_result, return it
     if prediction_result:
+        print("[API] Returning cached prediction_result")
         return prediction_result
     
-    # Otherwise, try to load persisted model metadata
-    # This allows inferencing on page reload without retraining
+    # Try to load persisted result from storage
     try:
         import json
-        model_path = os.path.join(backend_dir, "data", "sentinela_model.joblib")
-        metadata_path = model_path.replace('.joblib', '_metadata.json')
+        from pathlib import Path
+        # Models are already imported at top of file
         
-        if os.path.exists(metadata_path):
+        metadata_path = Path(backend_dir) / "data" / "sentinela_model_metadata.json"
+        
+        print(f"[API] Looking for persisted result at: {metadata_path}")
+        
+        if metadata_path.exists():
             with open(metadata_path, 'r') as f:
-                metadata_dict = json.load(f)
-            print(f"[API] Loaded persisted model metadata: {metadata_dict.get('model_name')}")
+                data = json.load(f)
             
-            # Return a minimal PredictionResult with just the metadata
-            # so frontend can display model configuration
-            from models import ModelMetadata
-            model_metadata = ModelMetadata(**metadata_dict)
+            print(f"[API] ✓ Loaded data from {metadata_path.name}")
             
-            # Return a stub result with metadata only (for dashboard display)
-            return {
-                "risk_score": 0,
-                "risk_level": "UNKNOWN",
-                "model_risk_score": 0,
-                "zone_risk_score": 0,
-                "predicted_volume": 0,
-                "expected_crime_type": "No inference data",
-                "affected_zones": [],
-                "duration_days": 0,
-                "confidence_interval": [0, 0],
-                "feature_importance": [],
-                "timeline_data": [],
-                "zone_risks": [],
-                "training_metrics": {
-                    "accuracy": 0,
-                    "precision": 0,
-                    "recall": 0,
-                    "f1_score": 0,
-                    "confusion_matrix": [],
-                    "dataset_size": 0
-                },
-                "model_metadata": model_metadata.model_dump(),
-                "warning_message": "No inference data available. Model loaded from storage.",
-                "data_source": "persisted_model"
-            }
+            # Check if this is a complete PredictionResult or just metadata
+            if 'risk_score' in data and 'predicted_volume' in data:
+                # Complete prediction result
+                try:
+                    result = PredictionResult(**data)
+                    print(f"[API] ✓ Loaded complete PredictionResult")
+                    return result
+                except Exception as e:
+                    print(f"[API] Error converting to PredictionResult: {e}")
+            
+            # If we only have metadata fields, create ModelMetadata and return stub
+            try:
+                from .models import ModelMetadata, TrainingMetrics
+                model_metadata = ModelMetadata(**data)
+                print(f"[API] ✓ Created ModelMetadata from file")
+                
+                # Return stub PredictionResult with metadata
+                return PredictionResult(
+                    risk_score=0,
+                    risk_level="UNKNOWN",
+                    model_risk_score=0,
+                    zone_risk_score=0,
+                    predicted_volume=0,
+                    expected_crime_type="No data",
+                    affected_zones=[],
+                    duration_days=0,
+                    confidence_interval=[0, 0],
+                    feature_importance=[],
+                    timeline_data=[],
+                    zone_risks=[],
+                    training_metrics=TrainingMetrics(
+                        accuracy=0, precision=0, recall=0, f1_score=0,
+                        confusion_matrix=[], dataset_size=0
+                    ),
+                    model_metadata=model_metadata,
+                    warning_message="Model metadata loaded. Train to generate predictions.",
+                    data_source="persisted_metadata"
+                )
+            except Exception as e:
+                print(f"[API] Error creating ModelMetadata: {e}")
+                import traceback
+                traceback.print_exc()
+        
     except Exception as e:
-        print(f"[API] Error loading persisted metadata: {e}")
+        print(f"[API] Error loading persisted data: {e}")
+        import traceback
+        traceback.print_exc()
     
-    return prediction_result
+    # No data available
+    print("[API] No data found, returning empty result")
+    from .models import TrainingMetrics
+    return PredictionResult(
+        risk_score=0,
+        risk_level="UNKNOWN",
+        model_risk_score=0,
+        zone_risk_score=0,
+        predicted_volume=0,
+        expected_crime_type="No model available",
+        affected_zones=[],
+        duration_days=0,
+        confidence_interval=[0, 0],
+        feature_importance=[],
+        timeline_data=[],
+        zone_risks=[],
+        training_metrics=TrainingMetrics(
+            accuracy=0, precision=0, recall=0, f1_score=0,
+            confusion_matrix=[], dataset_size=0
+        ),
+        model_metadata=None,
+        warning_message="No model available. Please train a model first.",
+        data_source="none"
+    )
 
 @app.get("/api/nlp-status")
 async def nlp_status():

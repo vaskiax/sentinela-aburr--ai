@@ -70,11 +70,11 @@ function App() {
             setScrapeStats(stats);
           } catch { }
         }
-        // Load result when training completes
-        // Backend now stays in TRAINING after completion (not INFERENCE)
-        if (pipelineStep === 'TRAINING' && (status.stage === 'TRAINING' || status.stage === 'INFERENCE') && !result) {
+        // Load result when training completes (ALWAYS reload to get latest training data)
+        if (pipelineStep === 'TRAINING' && (status.stage === 'TRAINING' || status.stage === 'INFERENCE')) {
           const res = await api.getResult();
-          if (res) {
+          if (res && res.model_metadata && res.model_metadata.model_name) {
+            console.log('[Frontend] Training complete, loading fresh result:', res.model_metadata.model_name);
             setResult(res);
           }
         }
@@ -320,7 +320,12 @@ function App() {
       case 'INFERENCE':
         return <InferenceView 
           onViewDashboard={() => setPipelineStep('DASHBOARD')}
-          onSendToDashboard={(pred) => { setResult(pred); setPipelineStep('DASHBOARD'); }}
+          onSendToDashboard={(pred) => { 
+            // PRESERVE model_metadata from training when updating with inference result
+            const preservedMetadata = result?.model_metadata;
+            setResult({ ...pred, model_metadata: preservedMetadata || pred.model_metadata }); 
+            setPipelineStep('DASHBOARD'); 
+          }}
         />;
       case 'DASHBOARD':
       default:
@@ -450,7 +455,11 @@ function App() {
               {isInferenceSectionOpen && (
                 <div className="p-4 border-t border-slate-800">
                   <InferenceView
-                    onSendToDashboard={(pred) => setResult(pred)}
+                    onSendToDashboard={(pred) => {
+                      // PRESERVE model_metadata from training when updating with inference result
+                      const preservedMetadata = result?.model_metadata;
+                      setResult({ ...pred, model_metadata: preservedMetadata || pred.model_metadata });
+                    }}
                     variant="embedded"
                   />
                 </div>

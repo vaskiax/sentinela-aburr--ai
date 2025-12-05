@@ -386,6 +386,8 @@ class Predictor:
             # Also save model metadata for inference (granularity, horizon, calibration, etc.)
             import json
             metadata_path = self.model_path.replace('.joblib', '_metadata.json')
+            # Get RMSE from results
+            rmse_value = results[self.best_model_name]['rmse'] if self.best_model_name in results else 0.0
             metadata = {
                 'granularity': granularity,
                 'horizon_days': horizon_days,
@@ -394,7 +396,8 @@ class Predictor:
                 'model_name': full_model_name,  # Use the new descriptive name
                 'winning_model': self.best_model_name,  # Keep the original name for reference
                 'max_observed_crimes': max_observed_crimes,  # NUEVO: calibración del modelo
-                'max_observed_zone_activity': max_observed_zone_activity  # NUEVO: calibración de zonas
+                'max_observed_zone_activity': max_observed_zone_activity,  # NUEVO: calibración de zonas
+                'rmse': float(rmse_value)  # Training performance metric
             }
             with open(metadata_path, 'w') as f:
                 json.dump(metadata, f)
@@ -448,7 +451,9 @@ class Predictor:
                 horizon_units=horizon_units,
                 horizon_suffix=suffix,
                 max_observed_crimes=max_observed_crimes,
-                max_observed_zone_activity=max_observed_zone_activity
+                max_observed_zone_activity=max_observed_zone_activity,
+                rmse=float(results[self.best_model_name]['rmse']),  # Add RMSE from training
+                winning_model=self.best_model_name  # Add winning model name
             ),
             training_data_sample=training_data_sample,
             test_data_sample=test_data_sample,
@@ -468,6 +473,40 @@ class Predictor:
                 "risk_calculation": "0.7 * model_risk + 0.3 * zone_risk"
             }
         )
+        
+        # === SAVE FULL PREDICTION RESULT TO PERSISTENT STORAGE ===
+        # This allows dashboard to show data even after page reload
+        try:
+            import json
+            from pathlib import Path
+            
+            # Save to backend/data/sentinela_model_metadata.json (complete result)
+            backend_data_dir = Path(self.model_path).parent
+            persistent_result_path = backend_data_dir / "sentinela_model_metadata.json"
+            
+            # Convert Pydantic model to dict
+            result_dict = prediction_result.model_dump()
+            
+            # Custom JSON encoder for non-serializable types
+            class CustomEncoder(json.JSONEncoder):
+                def default(self, obj):
+                    if hasattr(obj, '__dict__'):
+                        return obj.__dict__
+                    return str(obj)
+            
+            # OVERWRITE with latest training result
+            with open(persistent_result_path, 'w') as f:
+                json.dump(result_dict, f, cls=CustomEncoder, indent=2)
+            
+            print(f"[Predictor] ✅ Full prediction result saved to {persistent_result_path}")
+            print(f"[Predictor]    → This ensures dashboard persistence after reload")
+            
+        except Exception as e:
+            print(f"[Predictor] ⚠️ Warning: Could not save prediction result: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        return prediction_result
 
     def predict_on_demand(self, new_items: List[ScrapedItem], config: ScrapingConfig) -> Dict[str, Any]:
         """

@@ -7,7 +7,7 @@ interface ModelConfigMetadataProps {
 }
 
 const ModelConfigMetadata: React.FC<ModelConfigMetadataProps> = ({ metadata }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true); // START EXPANDED
 
   if (!metadata) {
     return (
@@ -72,7 +72,7 @@ const ModelConfigMetadata: React.FC<ModelConfigMetadataProps> = ({ metadata }) =
       {isExpanded && (
         <div className="px-4 pb-4 border-t border-slate-700">
           {/* Configuration Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 mt-4">
             {/* Granularity */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
               <p className="text-[10px] text-slate-400 font-mono uppercase mb-1">Granularity</p>
@@ -98,24 +98,36 @@ const ModelConfigMetadata: React.FC<ModelConfigMetadataProps> = ({ metadata }) =
               </p>
             </div>
 
-            {/* Model Type */}
+            {/* Model Type - Extract from winning_model or model_type */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
               <p className="text-[10px] text-slate-400 font-mono uppercase mb-1">Model</p>
               <p className="text-sm font-bold text-green-300 truncate">
-                {metadata.model_type?.includes('Random Forest') ? 'RF' :
-                  metadata.model_type?.includes('XGBoost') ? 'XGB' :
-                    metadata.model_type?.includes('LightGBM') ? 'LGBM' : 'Temporal'}
+                {metadata.winning_model?.includes('LightGBM') ? 'LGBM' :
+                  metadata.winning_model?.includes('XGBoost') ? 'XGB' :
+                    metadata.winning_model?.includes('Random Forest') ? 'RF' :
+                      metadata.model_type?.includes('Random Forest') ? 'RF' :
+                        metadata.model_type?.includes('XGBoost') ? 'XGB' :
+                          metadata.model_type?.includes('LightGBM') ? 'LGBM' : 'Temporal'}
               </p>
             </div>
 
-            {/* Data Period */}
+            {/* Data Period - from model_name or data_period_start */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
               <p className="text-[10px] text-slate-400 font-mono uppercase mb-1">Period</p>
               <p className="text-sm font-bold text-cyan-300">
-                {metadata.data_period_start ? 
-                  new Date(metadata.data_period_start).toLocaleDateString('es-CO', { month: 'short', day: 'numeric' })
+                {metadata.model_name ? metadata.model_name.split('_')[1] : 'N/A'}
+              </p>
+            </div>
+
+            {/* RMSE - Training Performance */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+              <p className="text-[10px] text-slate-400 font-mono uppercase mb-1">RMSE</p>
+              <p className="text-sm font-bold text-orange-300">
+                {metadata.rmse !== undefined && metadata.rmse !== null 
+                  ? metadata.rmse.toFixed(3)
                   : 'N/A'}
               </p>
+              <p className="text-[8px] text-slate-500 mt-0.5">Error (Test)</p>
             </div>
           </div>
 

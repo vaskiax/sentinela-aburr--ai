@@ -71,10 +71,10 @@ class CleaningStats(BaseModel):
     final_count: int
 
 class ModelMetadata(BaseModel):
-    regressors: List[str]
-    targets: List[str]
-    training_steps: List[str]
-    model_type: str
+    regressors: List[str] = []  # Make optional with default
+    targets: List[str] = []  # Make optional with default
+    training_steps: List[str] = []  # Make optional with default
+    model_type: str = "Unknown"  # Make optional with default
     model_name: Optional[str] = None  # Descriptive name: "ModelAbbrev_DateStart_Granularity_Size"
     data_period_start: Optional[str] = None
     data_period_end: Optional[str] = None
@@ -85,6 +85,8 @@ class ModelMetadata(BaseModel):
     # NUEVO: Calibración dinámica basada en historia
     max_observed_crimes: Optional[float] = 30.0  # Máximo volumen de crímenes en historia
     max_observed_zone_activity: Optional[float] = 10.0  # Máxima actividad de zona en historia
+    rmse: Optional[float] = None  # Root Mean Squared Error from training
+    winning_model: Optional[str] = None  # Original model name (e.g., 'XGBoost Regressor')
 
 class PredictionResult(BaseModel):
     # === PREDICCIÓN ACTUAL (Inferencia - Futuro) ===
