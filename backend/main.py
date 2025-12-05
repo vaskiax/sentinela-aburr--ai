@@ -214,7 +214,42 @@ async def run_training_task():
         print(f"[TRAINING] Calling predictor.train_and_predict with {len(scraped_data)} items...", flush=True)
         result = predictor.train_and_predict(current_config, scraped_data)
         print(f"[TRAINING] Training completed. Result: {result is not None}", flush=True)
-        prediction_result = result
+        
+        # After training, apply the saved model to the ORIGINAL dataset using the SAME
+        # inference pipeline that `/api/predict` uses. This keeps Dashboard numbers
+        # consistent with the Inference view when you send the same data.
+        try:
+            print(f"[TRAINING] Attempting to align dashboard with inference pipeline...", flush=True)
+            aligned_result = predictor.predict_on_demand(scraped_data, current_config)
+            print(f"[TRAINING] Alignment successful. Model risk: {aligned_result.model_risk_score}, Zone risk: {aligned_result.zone_risk_score}", flush=True)
+            # Merge inference risk outputs into the richer training result (keeps metrics & samples).
+            # Use model_dump() for Pydantic v2 compatibility
+            result_dict = result.model_dump()
+            result_dict.update({
+                "risk_score": aligned_result.risk_score,
+                "risk_level": aligned_result.risk_level,
+                "model_risk_score": aligned_result.model_risk_score,
+                "zone_risk_score": aligned_result.zone_risk_score,
+                "predicted_volume": aligned_result.predicted_volume,
+                "expected_crime_type": aligned_result.expected_crime_type,
+                "affected_zones": aligned_result.affected_zones,
+                "duration_days": aligned_result.duration_days,
+                "confidence_interval": aligned_result.confidence_interval,
+                "zone_risks": aligned_result.zone_risks,
+                "inference_data_sample": aligned_result.inference_data_sample,
+                "inference_data_full": aligned_result.inference_data_full,
+                "calculation_breakdown": aligned_result.calculation_breakdown,
+                "status": aligned_result.status,
+                "warning_message": aligned_result.warning_message,
+            })
+            prediction_result = PredictionResult(**result_dict)
+            print("[TRAINING] Dashboard result aligned with inference pipeline on training dataset.", flush=True)
+        except Exception as align_err:
+            print(f"[TRAINING] Alignment attempt failed: {str(align_err)}", flush=True)
+            import traceback
+            traceback.print_exc(file=__import__('sys').stderr)
+            print(f"[TRAINING] Using training result directly (no alignment). Result risk: {result.risk_score}", flush=True)
+            prediction_result = result
         add_log(PipelineStage.TRAINING, "Training complete. Model saved.")
         # IMPORTANT: Stay in TRAINING stage so user can review results
         # User must manually click "Proceed to Inference" button

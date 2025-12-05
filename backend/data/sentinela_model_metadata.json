@@ -1,1 +1,1 @@
-{"granularity": "W", "horizon_days": 7, "horizon_units": 1, "horizon_suffix": "w", "model_name": "XGBoost Regressor", "max_observed_crimes": 83.0, "max_observed_zone_activity": 28.0}
+{"granularity": "M", "horizon_days": 14, "horizon_units": 1, "horizon_suffix": "m", "model_name": "Random Forest Regressor", "max_observed_crimes": 4.0, "max_observed_zone_activity": 8.0}

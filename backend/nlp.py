@@ -136,6 +136,11 @@ Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle d
             except Exception as e:
                 print(f"[AI Query Builder] Date range processing error: {e}", file=sys.stderr, flush=True)
 
+            # BALANCED INTERLEAVING: Classify and interleave queries to ensure balance
+            print(f"[AI Query Builder] Balancing queries (TRIGGER vs CRIME_STAT)...", file=sys.stderr, flush=True)
+            queries = self._interleave_queries(queries, config)
+            print(f"[AI Query Builder] Final query order (first 10): {queries[:10]}", file=sys.stderr, flush=True)
+
             return queries
         except Exception as e:
             print(f"Query builder error: {e}", file=sys.stderr, flush=True)
@@ -148,6 +153,67 @@ Example: ["Captura cabecilla Clan del Golfo Medellín 2023", "Homicidios Valle d
                     fallback_queries.append(f'{event} {group} Medellín')
             print(f"[AI Query Builder] Exception fallback: {fallback_queries}", file=sys.stderr, flush=True)
             return fallback_queries if fallback_queries else ['captura Medellín']
+
+    def _interleave_queries(self, queries: list[str], config) -> list[str]:
+        """Classify queries as TRIGGER or CRIME_STAT and interleave them for balanced scraping."""
+        import sys
+        
+        trigger_keywords = set()
+        crime_keywords = set()
+        
+        # Build keyword sets from config
+        if config.predictor_events:
+            trigger_keywords.update([e.lower() for e in config.predictor_events])
+        if config.predictor_ranks:
+            trigger_keywords.update([r.lower() for r in config.predictor_ranks])
+        
+        # Add common trigger words
+        trigger_keywords.update(['captura', 'abatido', 'neutralizado', 'operativo', 'allanamiento', 
+                                  'incautación', 'decomiso', 'desarticulación', 'golpe'])
+        
+        if config.target_crimes:
+            crime_keywords.update([c.lower() for c in config.target_crimes])
+        
+        # Add common crime words
+        crime_keywords.update(['homicidio', 'asesinato', 'extorsión', 'hurto', 'robo', 
+                               'secuestro', 'aumento', 'estadística', 'cifras', 'casos'])
+        
+        # Classify queries
+        trigger_queries = []
+        crime_queries = []
+        ambiguous_queries = []
+        
+        for query in queries:
+            query_lower = query.lower()
+            
+            has_trigger = any(kw in query_lower for kw in trigger_keywords)
+            has_crime = any(kw in query_lower for kw in crime_keywords)
+            
+            if has_trigger and not has_crime:
+                trigger_queries.append(query)
+            elif has_crime and not has_trigger:
+                crime_queries.append(query)
+            else:
+                # Ambiguous or neither - distribute evenly
+                ambiguous_queries.append(query)
+        
+        print(f"[Query Classification] TRIGGER: {len(trigger_queries)}, CRIME_STAT: {len(crime_queries)}, AMBIGUOUS: {len(ambiguous_queries)}", file=sys.stderr, flush=True)
+        
+        # Interleave: alternate between trigger and crime queries
+        interleaved = []
+        max_len = max(len(trigger_queries), len(crime_queries))
+        
+        for i in range(max_len):
+            if i < len(trigger_queries):
+                interleaved.append(trigger_queries[i])
+            if i < len(crime_queries):
+                interleaved.append(crime_queries[i])
+        
+        # Append ambiguous queries at the end (or interleave them too)
+        interleaved.extend(ambiguous_queries)
+        
+        print(f"[Query Balancing] Interleaved {len(interleaved)} queries (T-C-T-C pattern)", file=sys.stderr, flush=True)
+        return interleaved
 
     def extract_article_data(self, html: str, url: str, config) -> Dict[str, Any]:
         """AI Agent: Extract structured data from article HTML and score relevance."""

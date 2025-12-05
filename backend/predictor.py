@@ -199,9 +199,9 @@ class Predictor:
         if zone_risks:
             print(f"[CALC] Top zone risk: {zone_risks[0]['zone']} = {zone_risks[0]['risk']:.1f}%")
         
-        # C. Riesgo Global (MAX de los dos)
-        final_risk_score = max(model_risk, max_zone_risk)
-        print(f"[CALC] Final Risk Score = MAX({model_risk:.1f}, {max_zone_risk:.1f}) = {final_risk_score:.1f}%")
+        # C. Riesgo Global (Promedio Ponderado: 70% Modelo + 30% Zona)
+        final_risk_score = (model_risk * 0.7) + (max_zone_risk * 0.3)
+        print(f"[CALC] Final Risk Score = (70% × {model_risk:.1f}) + (30% × {max_zone_risk:.1f}) = {final_risk_score:.1f}%")
 
         full_series_predictions = self.best_model.predict(X)
         timeline_data = [{"day": str(date.date()), "risk_score": int(round(min(99, (pred / max_observed_crimes) * 100 if max_observed_crimes > 0 else 50)))}
@@ -311,7 +311,7 @@ class Predictor:
                 "zone_risk_formula": f"(mentions / {max_observed_zone_activity:.2f}) * 100",
                 "zone_risk_score": float(max_zone_risk),
                 "final_risk_score": float(final_risk_score),
-                "risk_calculation": "MAX(model_risk, zone_risk)"
+                "risk_calculation": "0.7 * model_risk + 0.3 * zone_risk"
             }
         )
 
@@ -560,9 +560,9 @@ class Predictor:
             if zone_risks:
                 print(f"[CALC] Top zone risk: {zone_risks[0]['zone']} = {zone_risks[0]['risk']:.1f}%")
 
-        # 3. Global
-        final_risk_score = max(model_risk, max_zone_risk_val)
-        print(f"[CALC] Final Risk Score = MAX({model_risk:.1f}, {max_zone_risk_val:.1f}) = {final_risk_score:.1f}%")
+        # 3. Global (Promedio Ponderado: 70% Modelo + 30% Zona)
+        final_risk_score = (model_risk * 0.7) + (max_zone_risk_val * 0.3)
+        print(f"[CALC] Final Risk Score = (70% × {model_risk:.1f}) + (30% × {max_zone_risk_val:.1f}) = {final_risk_score:.1f}%")
 
         # Export inference data sample for visualization (last 10 rows)
         # If manual parameters were used, create a synthetic row showing those values
@@ -635,7 +635,7 @@ class Predictor:
                 "zone_risk_formula": f"({max_zone_risk_val / 100 * max_observed_zone_activity:.2f} / {max_observed_zone_activity:.2f}) * 100" if max_zone_risk_val > 0 else "No zone data",
                 "zone_risk_score": float(max_zone_risk_val),
                 "final_risk_score": float(final_risk_score),
-                "risk_calculation": "MAX(model_risk, zone_risk)",
+                "risk_calculation": "0.7 * model_risk + 0.3 * zone_risk",
                 "manual_parameters_used": manual_trigger_volume is not None and manual_relevance_score is not None and manual_trigger_velocity is not None
             }
         )

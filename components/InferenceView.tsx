@@ -6,10 +6,11 @@ import DataFrameViewer from './DataFrameViewer';
 
 interface InferenceViewProps {
     onViewDashboard?: () => void;
+    onSendToDashboard?: (prediction: any) => void;
 }
 // Force recompile - added TriggerVelocity parameter support
 
-const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
+const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendToDashboard }) => {
     const [inputData, setInputData] = useState<ScrapedItem[]>([]);
     const [prediction, setPrediction] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -28,6 +29,12 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
         triggerCount: 0,
         forecastHorizon: 7
     });
+
+    const handleSendToDashboard = () => {
+        if (onSendToDashboard && prediction) {
+            onSendToDashboard(prediction);
+        }
+    };
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -494,14 +501,12 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
                                             
                                             // Get ACTUAL values from model metadata (what was used during training/feature engineering)
                                             const horizonUnits = prediction.model_metadata?.horizon_units ?? 1;
+                                            // Always display horizons in days for user clarity
                                             const horizonDays = prediction.model_metadata?.horizon_days ?? 30;
                                             const horizonSuffix = prediction.model_metadata?.horizon_suffix ?? 'w';
                                             
-                                            // Determine time unit label based on suffix
-                                            let timeUnitLabel = 'days';
-                                            if (horizonSuffix === 'w') timeUnitLabel = 'days';
-                                            else if (horizonSuffix === 'm') timeUnitLabel = 'months';
-                                            else if (horizonSuffix === 'd') timeUnitLabel = 'days';
+                                            // Force user-facing unit to days (avoid months/weeks confusion)
+                                            const timeUnitLabel = 'days';
 
                                             // Get actual feature values used for prediction (last row of inference data)
                                             const lastRow = prediction.inference_data_sample?.[prediction.inference_data_sample.length - 1];
@@ -553,12 +558,8 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
                                         <div className="text-[10px] text-slate-500 uppercase">Horizon</div>
                                         <div className="text-lg font-bold text-blue-400">
                                             {(() => {
-                                                const horizonSuffix = prediction.model_metadata?.horizon_suffix ?? 'w';
                                                 const horizonDays = prediction.model_metadata?.horizon_days ?? 30;
-                                                let unit = 'Days';
-                                                if (horizonSuffix === 'w') unit = 'Days';
-                                                else if (horizonSuffix === 'm') unit = 'Months';
-                                                return `${horizonDays} ${unit}`;
+                                                return `${horizonDays} Days`;
                                             })()}
                                         </div>
                                     </div>
@@ -597,6 +598,15 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard }) => {
                     <strong className="text-slate-300">Model Artifact:</strong> sentinela_model.joblib (Random Forest / XGBoost)
                 </div>
                 <div className="flex gap-3">
+                    {onSendToDashboard && (
+                        <button
+                            onClick={handleSendToDashboard}
+                            disabled={!prediction}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors border ${prediction ? 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500' : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'}`}
+                        >
+                            <BarChart3 size={14} /> SEND TO DASHBOARD
+                        </button>
+                    )}
                     {onViewDashboard && (
                         <button
                             onClick={onViewDashboard}

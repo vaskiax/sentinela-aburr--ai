@@ -51,7 +51,7 @@ const Documentation = () => {
         </div>
 
         <div className="p-3 bg-slate-800/50 rounded text-center border border-slate-700">
-          <span className="text-white font-bold text-sm">Riesgo Global = MAX( Riesgo_Modelo, Riesgo_Zona )</span>
+          <span className="text-white font-bold text-sm">Riesgo Global = (70% × Riesgo_Modelo) + (30% × Riesgo_Zona)</span>
         </div>
       </DocSection>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldAlert, Layout, Code, Play, RefreshCw, ChevronRight, Activity, Target, BookOpen, Database, Settings } from 'lucide-react';
+import { ShieldAlert, Layout, Code, Play, RefreshCw, ChevronRight, ChevronLeft, Activity, Target, BookOpen, Database, Settings } from 'lucide-react';
 import PipelineStatus from './components/PipelineStatus';
 import ProjectArchitecture from './components/ProjectArchitecture';
 import PipelineConfig from './components/PipelineConfig';
@@ -301,7 +301,10 @@ function App() {
           </div>
         );
       case 'INFERENCE':
-        return <InferenceView onViewDashboard={() => setPipelineStep('DASHBOARD')} />;
+        return <InferenceView 
+          onViewDashboard={() => setPipelineStep('DASHBOARD')}
+          onSendToDashboard={(pred) => { setResult(pred); setPipelineStep('DASHBOARD'); }}
+        />;
       case 'DASHBOARD':
       default:
         return (
@@ -312,9 +315,17 @@ function App() {
                 <h2 className="text-lg font-bold text-white">Operational Dashboard</h2>
                 <p className="text-xs text-slate-400">Real-time risk assessment based on historical & current intelligence.</p>
               </div>
-              <button onClick={downloadReport} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-green-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2">
-                <Database size={14} /> EXPORT DATA
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setPipelineStep('INFERENCE')} 
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2"
+                >
+                  <ChevronLeft size={14} /> Back to Inference
+                </button>
+                <button onClick={downloadReport} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-green-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2">
+                  <Database size={14} /> EXPORT DATA
+                </button>
+              </div>
             </div>
 
             {/* Top KPI Cards */}
