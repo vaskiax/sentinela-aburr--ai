@@ -1,106 +1,235 @@
-# Sentinela Aburrá AI
+# Sentinela Aburrá — Future Risk Forecasting Platform
 
-**Sentinela Aburrá AI** is a specialized ML Ops platform designed to monitor, analyze, and predict criminal dynamics in the Valle de Aburrá region (Medellín, Colombia). It combines intelligent web scraping, Large Language Models (LLMs), and deterministic risk modeling to provide actionable intelligence on security threats.
-
-## 🏗️ System Architecture
-
-The system operates on a linear pipeline: **Configuration -> Scraping -> Cleaning -> Analysis -> Prediction -> Visualization**.
-
-### Tech Stack
-- **Frontend**: React, Vite, TailwindCSS, Recharts, D3.js.
-- **Backend**: FastAPI (Python), Pydantic.
-- **AI/NLP**: 
-    - **Perplexity API**: For deep web search and article discovery.
-    - **DeepSeek V3**: For entity extraction, relevance scoring, and query generation.
-- **Data Processing**: BeautifulSoup4, Requests.
+**Sentinela Aburrá** is a machine learning operations platform for **relative risk forecasting** in the Valle de Aburrá region (Medellín, Colombia). It predicts elevated threat levels from precursor signals—not specific crimes—using supervised ML models trained on historical trigger events and criminal activity data.
 
 ---
 
-## 🚀 Pipeline & Modules Explained
+## 📋 Core Principles
 
-### 1. Intelligent Scraping (`backend/scraper.py`)
-This module is responsible for gathering raw intelligence from the web. It does NOT simply crawl random pages; it uses an AI-driven targeted approach.
+### What We Predict
+- **Relative risk** from precursor activity patterns (leadership disruption, seizures, media mentions)
+- **Not** point predictions of specific crimes, dates, or locations
+- Risk is benchmarked against **historical worst-case scenarios** (100% = historical maximum observed)
 
-**Step-by-Step Process:**
-1.  **Query Generation**: The system sends the user's configuration (Target Orgs, Crimes, Events) to the LLM (`nlp.py`). The LLM generates ~50 optimized search queries (e.g., *"Captura cabecilla Clan del Golfo Medellín 2024"*).
-2.  **Discovery**: These queries are sent to the **Perplexity API**, which searches the open web and returns a list of relevant URLs from news sources like *Minuto30*, *El Colombiano*, and *Q'Hubo*.
-3.  **Fetching**: The scraper visits each URL.
-    *   **Safety Check**: It enforces a **5MB limit** on downloads to prevent hanging on large files (like government CSVs).
-4.  **Extraction**: The HTML content is parsed. The system extracts the Headline, Body, and Date.
-5.  **AI Scoring**: The content is sent to the LLM to calculate a **Relevance Score (0-1)** based on how well it matches the user's criteria.
+### What We Do
+✅ Detect shifts vs. historical patterns  
+✅ Quantify anomaly levels  
+✅ Benchmark against historical maxima  
+✅ Provide operational decision support  
 
-### 2. Data Cleaning & Filtering (`backend/scraper.py` & `backend/nlp.py`)
-Before data reaches the predictor, it undergoes rigorous cleaning to ensure quality.
-
-**Cleaning Logic:**
--   **Relevance Filter**: Any article with a relevance score **< 0.15** is immediately discarded. This removes noise (e.g., traffic accidents, unrelated petty crime).
--   **Date Normalization**: The NLP engine extracts the publication date from HTML metadata or text. If a date cannot be found, it is estimated from context or flagged.
--   **Deduplication**: Duplicate URLs or identical headlines are removed.
-
-### 3. Predictive Engine (`backend/predictor.py`)
-This is the core intelligence module. It now implements a **Multi-Model Supervised Learning** pipeline using `scikit-learn`.
-
-**How it works:**
-1.  **Ingestion**: Receives the list of cleaned, high-relevance `ScrapedItems`.
-2.  **Data Enrichment**: Uses structured metadata extracted by the NLP module (Crime Type, Organization, Locations) as training labels.
-3.  **Real-Time Training**:
-    -   **Vectorization**: Converts text (Headline + Snippet) to TF-IDF vectors.
-    -   **Split**: Performs an 80/20 Train/Test split.
-    -   **Multi-Model Competition**: Trains three distinct classifiers simultaneously:
-        -   🌲 **Random Forest**: Robust against overfitting.
-        -   bayes **Naive Bayes**: Excellent for text classification.
-        -   📈 **Logistic Regression**: Provides a solid linear baseline.
-    -   **Selection**: Automatically selects the model with the highest **F1-Score** on the test set.
-4.  **Risk Calculation**:
-    -   Uses the winning model to predict risk categories for all items.
-    -   Combines model predictions with volume and keyword density to generate the final **Risk Index**.
-4.  **Timeline Generation**:
-    -   Aggregates the risk scores by the **actual publication dates** of the articles.
-    -   This creates the time-series chart showing the evolution of the threat over the selected date range.
-
-### 4. NLP Processor (`backend/nlp.py`)
-The "Brain" of the operation. It handles all communication with the LLMs.
--   **`build_search_queries`**: Translates config into search operator strings.
--   **`extract_article_data`**: Reads raw HTML (up to 15,000 chars) and returns structured JSON (Headline, Date, Snippet, Relevance).
--   **`web_search`**: Interfaces with Perplexity to find URLs.
+### What We Do NOT
+❌ Predict exact crimes, dates, or places  
+❌ Guarantee violence will occur  
+❌ Use fixed 100% thresholds  
+❌ Operate without historical context  
 
 ---
 
-## 📊 Dashboard Indicators
+## 🚀 End-to-End Pipeline (5 Stages)
 
-### Violence Risk Index
-A composite score indicating the stability of the region.
--   🟢 **0 - 30 (Low)**: Routine police activity. Stable.
--   🟠 **31 - 70 (Elevated)**: Increased gang movement, specific threats detected.
--   🔴 **71 - 100 (Critical)**: High probability of violent confrontation or major criminal events.
+### Stage 1: Configuration
+Select forecast parameters:
+- **Horizon**: 7/14/30/90 days ahead (shorter = reactive, longer = stable)
+- **Granularity**: Daily (sensitive), Weekly (balanced), Monthly (trend)
+- **Historical Scope**: 90–365 days for calibration
 
-### Spatial Risk Map
-Visualizes the **Zone Extraction** data.
--   Zones are colored based on their specific risk contribution.
--   **Red**: Critical activity detected (>70).
--   **Orange**: Elevated activity (>30).
--   **Blue**: Low/Routine activity (>10).
-
----
-
-## 🛠️ Configuration & Environment
-
-### Environment Variables (`.env`)
-Required keys for the backend:
-```bash
-DEEPSEEK_API_KEY=sk-...      # For NLP extraction and scoring
-PERPLEXITY_API_KEY=pplx-...  # For web search and discovery
+### Stage 2: Scraping / Data Ingest
+Upload CSV with historical events:
+```csv
+Date,Source,Type,Headline,Relevance,URL
+2025-01-15,Perplexity,TRIGGER_EVENT,Capture Urabenos in Manrique,0.9,https://...
+2025-01-16,News,CRIME_STAT,Homicides barrio Obrero,0.85,https://...
 ```
 
-### Installation
-1.  **Backend**:
-    ```bash
-    cd backend
-    pip install -r requirements.txt
-    uvicorn main:app --reload
-    ```
-2.  **Frontend**:
-    ```bash
-    npm install
-    npm run dev
-    ```
+**Types:**
+- `TRIGGER_EVENT`: Captures, seizures, leadership disruption
+- `CRIME_STAT`: Homicides, robberies, reported crimes
+
+### Stage 3: Data Preview & QA
+Validates schema, removes duplicates, checks required columns (Date, Type, Headline, Relevance). Shows cleaning stats before training.
+
+### Stage 4: Training
+**Feature Engineering:**
+- Rolling window aggregations (7/14/30 days)
+- Trigger volume, relevance sums, velocity/recency
+- Zone activity, historical calibration (max observed crimes, max zone activity)
+
+**Model Selection:**
+- Trains: RandomForest, XGBoost, LightGBM
+- Selects lowest RMSE
+- Persists: `sentinela_model_metadata.json` (includes granularity, horizon, RMSE, model type)
+
+### Stage 5: Dashboard & Inference
+**Dashboard** auto-loads latest trained result with persistent model configuration.  
+**Inference** enables manual what-if runs without overwriting model metadata.
+
+---
+
+## 📊 Risk Model & Semaphores
+
+### Model Risk (Volume)
+```
+(predicted_volume / max_observed_crimes) * 100
+```
+Benchmarks forecasted volume against historical maximum.
+
+### Zone Risk (Activity)
+```
+(current_zone_mentions / max_observed_zone_activity) * 100
+```
+Captures local hotspot pressure.
+
+### Global Risk Formula
+```
+Global Risk = 0.70 × Model Risk + 0.30 × Zone Risk
+```
+70% weight on aggregated volume forecast, 30% on localized hotspot activity.
+
+### Semaphores
+| Range | Color | Level |
+|-------|-------|-------|
+| 0-20% | 🟢 GREEN | Low |
+| 21-40% | 🔵 BLUE | Guarded |
+| 41-60% | 🟡 YELLOW | Elevated |
+| 61-80% | 🟠 ORANGE | High |
+| 81-100% | 🔴 RED | Critical |
+
+---
+
+## 🏗️ Technical Architecture
+
+### Stack
+**Frontend:**
+- React 18 + TypeScript + Vite
+- TailwindCSS, Lucide Icons, Recharts
+
+**Backend:**
+- FastAPI (Python)
+- Scikit-learn, XGBoost, LightGBM
+- Google Generative AI (Gemini) for NLP
+- Pandas, NumPy
+
+### Data Flow
+1. Upload CSV → frontend schema validation
+2. `POST /config` → set horizon/granularity
+3. `POST /scrape` → simulated ingest → `DATA_PREVIEW`
+4. `POST /train` → NLP + features + model selection → `TRAINING`
+5. `GET /result` → prediction + risk + metadata → `DASHBOARD`
+6. `GET /options` → enums + combos CSV for dropdowns
+
+### Key Folders
+```
+backend/
+├─ main.py → FastAPI routes
+├─ models.py → Pydantic schemas (PredictionResult, ModelMetadata)
+├─ predictor.py → training/inference + persistence
+├─ nlp.py → Gemini NLP (mock if no key)
+├─ data_loader.py → options from combos_v2.csv
+└─ data/ → combos_v2.csv, sentinela_model_metadata.json
+
+src/
+├─ App.tsx → orchestration & polling
+├─ services/api.ts → single HTTP client
+├─ components/ → pipeline views, dashboard widgets
+└─ services/geminiService.ts → frontend NER only
+```
+
+---
+
+## 🛠️ Installation & Deployment
+
+### Environment Variables
+**Backend:**
+```bash
+GEMINI_API_KEY=your_key_here  # Enables real NLP; mock otherwise
+```
+
+**Frontend:**
+```bash
+VITE_GEMINI_API_KEY=your_key_here  # Injected by Vite for geminiService
+```
+
+### Quick Start (Windows PowerShell)
+**Backend:**
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r backend/requirements.txt
+$env:GEMINI_API_KEY="your_key"
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Frontend:**
+```powershell
+npm install
+$env:VITE_GEMINI_API_KEY="your_key"
+npm run dev
+```
+
+**One-shot:**
+```powershell
+.\start_app.bat  # Launches backend + frontend
+```
+
+---
+
+## 📖 Operational Guide
+
+### Configure
+- **Forecast Horizon:** 7 for operations; 30+ for strategic planning
+- **Granularity:** D (sensitive), W (balanced), M (trend)
+- **Historical Scope:** 90–365 days (more data helps if clean)
+
+### Prepare Data
+CSV schema (required):
+```csv
+Date,Source,Type,Headline,Relevance,URL
+```
+- **Date:** ISO format (YYYY-MM-DD)
+- **Type:** `TRIGGER_EVENT` or `CRIME_STAT`
+- **Relevance:** 0.0–1.0
+
+### Interpret Results
+- **Forecast Panel (red):** Live prediction vs. historical max (75% = three quarters of worst scenario)
+- **Audit Trail:** Transparent calculation breakdown
+- **Validation (Training view):** RMSE, dataset size, model choice (past performance; not shown on Dashboard)
+- **Zone Breakdown:** Top neighborhoods driving risk for resource allocation
+
+### Warnings
+⚠️ **Data Scarcity:** Short history → weak signal  
+⚠️ **Scale Mismatch:** Fallback uses last good model if data doesn't align  
+⚠️ **Outliers:** Abrupt jumps may be real or data errors—review manually  
+
+---
+
+## 🔍 FAQ
+
+**Why did risk jump from 30% to 75%?**  
+Likely surge in triggers or high-impact events. Check zone breakdown and timeline. If genuine, treat as alert; if not, review data quality.
+
+**What does 150% risk mean?**  
+Forecast exceeded historical max. Worse than any observed scenario. Investigate immediately.
+
+**How to read RMSE?**  
+Root Mean Squared Error in event units. RMSE=2.5 means average error ~2-3 events. Lower is better.
+
+**Why "data_source: training_fallback"?**  
+New data did not align with historical scale. System served last good model. Re-run with cleaner or longer history.
+
+**Can I use 10-year history?**  
+Possible but risky: gangs, context, and measurement change. Best: 12–18 months of relevant, clean data.
+
+**Why not predict specific crimes?**  
+Discrete crimes are unpredictable. We forecast elevated risk from precursor patterns to guide resource allocation.
+
+---
+
+## 📄 License
+© 2025 Sentinela Aburrá. All rights reserved.
+
+---
+
+## 🔗 Resources
+- **Documentation:** In-app Docs tab (ultra-detailed pipeline, metrics, architecture)
+- **API:** `http://localhost:8000/docs` (FastAPI auto-generated)
+- **Codebase Explorer:** In-app Architecture tab

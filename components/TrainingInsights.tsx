@@ -27,8 +27,7 @@ const TrainingInsights: React.FC<TrainingInsightsProps> = ({ metadata, metrics }
                 </ul>
                 <div className="mt-auto pt-3 border-t border-slate-800">
                     <p className="text-[10px] text-slate-500 leading-relaxed">
-                        <strong className="text-slate-400">Cómo se calculan:</strong> Estas variables se generan usando <strong>ventanas deslizantes</strong> de {metadata.forecast_horizon || 7} días.
-                        Se suman todos los eventos trigger y sus puntajes de relevancia en los últimos {metadata.forecast_horizon || 7} días para cada punto temporal.
+                        <strong className="text-slate-400">How they are built:</strong> Features use <strong>rolling windows</strong> of {metadata.forecast_horizon || 7} days, summing trigger events and relevance scores in the last {metadata.forecast_horizon || 7} days at each point in time.
                     </p>
                 </div>
             </div>
@@ -48,8 +47,7 @@ const TrainingInsights: React.FC<TrainingInsightsProps> = ({ metadata, metrics }
                 </ul>
                 <div className="mt-auto pt-3 border-t border-slate-800">
                     <p className="text-[10px] text-slate-500 leading-relaxed">
-                        <strong className="text-slate-400">Qué predice:</strong> El volumen de reportes criminales que ocurrirán en los <strong>próximos {metadata.forecast_horizon || 7} días</strong>,
-                        basándose en la actividad de eventos trigger en el período anterior. Esto permite anticipar picos de criminalidad.
+                        <strong className="text-slate-400">What it predicts:</strong> The volume of criminal reports in the <strong>next {metadata.forecast_horizon || 7} days</strong>, based on trigger activity in the preceding period to anticipate crime surges.
                     </p>
                 </div>
             </div>

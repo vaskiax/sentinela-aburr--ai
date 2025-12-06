@@ -1,1 +1,1 @@
-{"granularity": "W", "horizon_days": 7, "horizon_units": 1, "horizon_suffix": "w", "model_name": "LGBM_20240714_W_73periods", "winning_model": "LightGBM Regressor", "max_observed_crimes": 6.0, "max_observed_zone_activity": 5.0, "rmse": 1.341780991587176}
+{"granularity": "W", "horizon_days": 7, "horizon_units": 1, "horizon_suffix": "w", "model_name": "RF_20230205_W_148periods", "winning_model": "Random Forest Regressor", "max_observed_crimes": 6.0, "max_observed_zone_activity": 5.0, "rmse": 0.9379509738436862}

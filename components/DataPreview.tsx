@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { ScrapedItem } from '../types';
-import { Database, ArrowRight, Download, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Database, ArrowRight, Download, ExternalLink, ChevronLeft, ChevronRight, Loader } from 'lucide-react';
 
 interface Props {
   data: ScrapedItem[];
   onProceed: () => void;
+  isTrainingInProgress?: boolean;
+  onViewTraining?: () => void;
 }
 
-const DataPreview: React.FC<Props> = ({ data, onProceed }) => {
+const DataPreview: React.FC<Props> = ({ data, onProceed, isTrainingInProgress = false, onViewTraining }) => {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -64,6 +66,25 @@ const DataPreview: React.FC<Props> = ({ data, onProceed }) => {
 
   return (
     <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 shadow-2xl h-full flex flex-col">
+      {/* Training Progress Banner */}
+      {isTrainingInProgress && onViewTraining && (
+        <div className="mb-4 bg-blue-900/20 border border-blue-500/50 rounded-lg p-4 flex items-center justify-between animate-pulse">
+          <div className="flex items-center gap-3">
+            <Loader className="text-blue-400 animate-spin" size={20} />
+            <div>
+              <p className="text-sm font-bold text-blue-300">Training in Progress</p>
+              <p className="text-xs text-blue-200/70">Model is being trained on this dataset. You can continue reviewing or view progress.</p>
+            </div>
+          </div>
+          <button
+            onClick={onViewTraining}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded transition-colors flex items-center gap-2"
+          >
+            View Training <ArrowRight size={16} />
+          </button>
+        </div>
+      )}
+      
       <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
         <div>
           <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
@@ -181,9 +202,14 @@ const DataPreview: React.FC<Props> = ({ data, onProceed }) => {
 
         <button
           onClick={onProceed}
-          className="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-lg font-bold shadow-lg shadow-green-900/20 flex items-center gap-2 transition-all"
+          disabled={isTrainingInProgress}
+          className="bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold shadow-lg shadow-green-900/20 flex items-center gap-2 transition-all"
         >
-          APPROVE & TRAIN MODEL <ArrowRight size={18} />
+          {isTrainingInProgress ? (
+            <><Loader className="animate-spin" size={18} /> TRAINING...</>
+          ) : (
+            <>APPROVE & TRAIN MODEL <ArrowRight size={18} /></>
+          )}
         </button>
       </div>
     </div>

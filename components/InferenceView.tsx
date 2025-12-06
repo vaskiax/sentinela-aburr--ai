@@ -451,7 +451,7 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendTo
                                     <div className="w-full bg-amber-900/20 border border-amber-500/50 p-3 rounded-lg flex items-start gap-3 text-left animate-pulse">
                                         <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={16} />
                                         <div>
-                                            <p className="text-xs font-bold text-amber-200">Precaución: Ventana de Datos Incompleta</p>
+                                            <p className="text-xs font-bold text-amber-200">Caution: Incomplete Data Window</p>
                                             <p className="text-[10px] text-amber-300/80">{prediction.warning_message}</p>
                                         </div>
                                     </div>
@@ -459,14 +459,14 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendTo
 
                                 {/* SCORE PRINCIPAL */}
                                 <div>
-                                    <div className="text-xs text-slate-500 uppercase font-bold mb-1">Índice de Riesgo Global</div>
+                                    <div className="text-xs text-slate-500 uppercase font-bold mb-1">Global Risk Index</div>
                                     <div className={`text-6xl font-black tracking-tight ${
                                         prediction.risk_score > 70 ? 'text-red-500' : 
                                         prediction.risk_score > 30 ? 'text-orange-500' : 'text-emerald-500'
                                     }`}>
                                         {prediction.risk_score}
                                     </div>
-                                    <div className="text-xs text-slate-400 mt-2">Escala Normalizada 0-100</div>
+                                    <div className="text-xs text-slate-400 mt-2">Normalized Scale 0-100</div>
                                 </div>
 
                                 {/* DESGLOSE COMPARATIVO (PERAS CON PERAS) */}
@@ -481,7 +481,7 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendTo
                                             <div className="h-full bg-blue-500" style={{width: `${prediction.model_risk_score}%`}}></div>
                                         </div>
                                         <p className="text-[9px] text-slate-600 mt-2 z-10 relative leading-tight">
-                                            Proyección vs. Máx. Histórico
+                                            Projection vs. Historical Peak
                                         </p>
                                     </div>
 
@@ -495,16 +495,16 @@ const InferenceView: React.FC<InferenceViewProps> = ({ onViewDashboard, onSendTo
                                             <div className="h-full bg-purple-500" style={{width: `${prediction.zone_risk_score}%`}}></div>
                                         </div>
                                         <p className="text-[9px] text-slate-600 mt-2 z-10 relative leading-tight">
-                                            Mención actual vs. Pico Histórico
+                                            Current Mentions vs. Historical Peak
                                         </p>
                                     </div>
                                 </div>
 
                                 {/* Crime Volume Display */}
                                 <div className="text-center pt-2 border-t border-slate-800">
-                                    <div className="text-xs text-slate-500 uppercase font-bold mb-1">Volumen Proyectado</div>
+                                    <div className="text-xs text-slate-500 uppercase font-bold mb-1">Projected Volume</div>
                                     <div className="text-3xl font-black text-white">{prediction.predicted_volume}</div>
-                                    <div className="text-xs text-slate-400">incidentes</div>
+                                    <div className="text-xs text-slate-400">incidents</div>
                                 </div>
 
                                 {/* Dynamic Explanation */}

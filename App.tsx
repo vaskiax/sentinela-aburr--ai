@@ -50,9 +50,8 @@ function App() {
         setLogs(status.logs);
 
         // Only update stage from backend if we're in a processing state
-        // Don't override user navigation (DASHBOARD, CONFIGURATION)
-        // CRITICAL: Exclude TRAINING from auto-updates - user must manually proceed
-        const processingStages: PipelineStage[] = ['SCRAPING', 'DATA_PREVIEW'];
+        // Don't override user navigation (DASHBOARD, CONFIGURATION, DATA_PREVIEW)
+        const processingStages: PipelineStage[] = ['SCRAPING', 'TRAINING'];
         const isProcessing = processingStages.includes(pipelineStep);
 
         // Special case: Allow transition from CONFIGURATION to DATA_PREVIEW (for CSV upload)
@@ -162,7 +161,8 @@ function App() {
   const handleTrainModel = async () => {
     try {
       await api.startTraining();
-      setPipelineStep('TRAINING');
+      // Don't manually set TRAINING - let polling detect backend stage change
+      // This allows user to stay in DATA_PREVIEW until backend actually starts training
     } catch (e) {
       console.error('Failed to start training', e);
     }
@@ -313,7 +313,12 @@ function App() {
           <div className="flex flex-col h-full overflow-hidden">
             <CleaningReport stats={scrapeStats} />
             <div className="flex-1 min-h-0">
-              <DataPreview data={scrapedData} onProceed={handleTrainModel} />
+              <DataPreview 
+                data={scrapedData} 
+                onProceed={handleTrainModel}
+                isTrainingInProgress={logs.some(log => log.stage === 'TRAINING' && log.status === 'success')}
+                onViewTraining={() => setPipelineStep('TRAINING')}
+              />
             </div>
           </div>
         );
@@ -334,7 +339,7 @@ function App() {
             {/* Header */}
             <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
               <div>
-                <h2 className="text-lg font-bold text-white">Dashboard Híbrido — Dual Truth Architecture</h2>
+                <h2 className="text-lg font-bold text-white">Dashboard Future Prediction</h2>
                 <p className="text-xs text-slate-400">Operational forecast + Inline inference controls</p>
               </div>
               <div className="flex items-center gap-2">
@@ -430,9 +435,9 @@ function App() {
               <div className="bg-amber-900/20 border-l-4 border-amber-500 p-4 rounded flex items-start gap-3">
                 <AlertTriangle className="text-amber-400 mt-0.5" size={20} />
                 <div>
-                  <p className="text-sm font-bold text-amber-300">⚠️ Fallback Mode: Datos de Validación Histórica</p>
+                  <p className="text-sm font-bold text-amber-300">⚠️ Fallback Mode: Historical Validation Data</p>
                   <p className="text-xs text-amber-200/70 mt-1">
-                    La alineación en tiempo real no pudo completarse. Se muestran resultados del dataset de entrenamiento. Esto puede ocurrir si hay problemas de serialización o estado inconsistente.
+                    Real-time alignment could not complete. Showing results from the training dataset. This can happen if serialization fails or state is inconsistent.
                   </p>
                 </div>
               </div>
@@ -449,7 +454,7 @@ function App() {
                 onClick={() => setIsInferenceSectionOpen(!isInferenceSectionOpen)}
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors"
               >
-                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Controles de Inferencia</h3>
+                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Inference Controls</h3>
                 {isInferenceSectionOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
               </button>
               {isInferenceSectionOpen && (
@@ -594,7 +599,7 @@ function App() {
             }}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2 transition-colors"
           >
-            <Settings size={14} /> NUEVA CONFIGURACIÓN
+            <Settings size={14} /> NEW CONFIGURATION
           </button>
         )}
       </nav>
