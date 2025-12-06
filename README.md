@@ -106,7 +106,7 @@ Global Risk = 0.70 × Model Risk + 0.30 × Zone Risk
 **Backend:**
 - FastAPI (Python)
 - Scikit-learn, XGBoost, LightGBM
-- Google Generative AI (Gemini) for NLP
+- Perplexity & Deepseek API for NLP
 - Pandas, NumPy
 
 ### Data Flow
@@ -141,12 +141,8 @@ src/
 ### Environment Variables
 **Backend:**
 ```bash
-GEMINI_API_KEY=your_key_here  # Enables real NLP; mock otherwise
-```
-
-**Frontend:**
-```bash
-VITE_GEMINI_API_KEY=your_key_here  # Injected by Vite for geminiService
+DEEPSEEK_API_KEY=your_key_here  # Enables real NLP; mock otherwise
+PERPLEXITY_API_KEY=your_key_here  # Enables websearch; mock otherwise
 ```
 
 ### Quick Start (Windows PowerShell)
@@ -155,14 +151,14 @@ VITE_GEMINI_API_KEY=your_key_here  # Injected by Vite for geminiService
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r backend/requirements.txt
-$env:GEMINI_API_KEY="your_key"
+$env:DEEPSEEK_API_KEY="your_key"
+$env:PERPLEXITY_API_KEY="your_key"
 uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **Frontend:**
 ```powershell
 npm install
-$env:VITE_GEMINI_API_KEY="your_key"
 npm run dev
 ```
 
