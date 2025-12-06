@@ -185,7 +185,13 @@ const PipelineConfig: React.FC<Props> = ({ config, setConfig, onStartPipeline })
               onChange={(e) => setConfig(prev => ({ ...prev, date_range_start: e.target.value }))}
               className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500"
             />
-            <span className="text-slate-600 text-xs">to Present</span>
+            <span className="text-slate-600 text-xs">to</span>
+            <input
+              type="date"
+              value={config.date_range_end || new Date().toISOString().split('T')[0]}
+              onChange={(e) => setConfig(prev => ({ ...prev, date_range_end: e.target.value }))}
+              className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500"
+            />
           </div>
 
           <div className="flex items-center gap-2 border-l border-slate-700 pl-4">

@@ -34,6 +34,7 @@ function App() {
     predictor_ranks: [],
     target_crimes: [],
     date_range_start: '2023-01-01',
+    date_range_end: new Date().toISOString().split('T')[0],
     forecast_horizon: 7,
     granularity: 'W'
   });
@@ -128,7 +129,8 @@ function App() {
       predictor_events: [MASTER_PREDICTOR_EVENTS[0]].filter(Boolean),
       predictor_ranks: [MASTER_PREDICTOR_RANKS[0]].filter(Boolean),
       target_crimes: [MASTER_TARGET_CRIMES[0]].filter(Boolean),
-      date_range_start: '2023-01-01'
+      date_range_start: '2023-01-01',
+      date_range_end: new Date().toISOString().split('T')[0]
     };
     setScrapingConfig(initialConfig);
     console.log('[Frontend] New analysis initialized with defaults');

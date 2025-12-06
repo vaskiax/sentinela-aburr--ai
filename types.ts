@@ -131,6 +131,7 @@ export interface ScrapingConfig {
   target_organizations: string[];
   local_combos: string[];
   date_range_start: string;
+  date_range_end?: string;  // Optional: default to today if not provided
 
   // Predictor Variables (X) - The Input Triggers
   predictor_events: string[]; // e.g., ['Capture', 'Neutralization']
