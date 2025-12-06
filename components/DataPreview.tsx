@@ -100,6 +100,28 @@ const DataPreview: React.FC<Props> = ({ data, onProceed, isTrainingInProgress = 
         </div>
       </div>
 
+      {/* Action Buttons - Moved to top */}
+      <div className="mb-4 flex justify-between">
+        <button
+          onClick={handleDownload}
+          className="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-all text-xs"
+        >
+          <Download size={16} /> DOWNLOAD DATASET (CSV)
+        </button>
+
+        <button
+          onClick={onProceed}
+          disabled={isTrainingInProgress}
+          className="bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold shadow-lg shadow-green-900/20 flex items-center gap-2 transition-all"
+        >
+          {isTrainingInProgress ? (
+            <><Loader className="animate-spin" size={18} /> TRAINING...</>
+          ) : (
+            <>APPROVE & TRAIN MODEL <ArrowRight size={18} /></>
+          )}
+        </button>
+      </div>
+
       {/* Rows per page slider */}
       <div className="mb-4 bg-slate-900 border border-slate-800 rounded-lg p-4">
         <div className="flex items-center justify-between mb-2">
@@ -189,27 +211,6 @@ const DataPreview: React.FC<Props> = ({ data, onProceed, isTrainingInProgress = 
           className="flex items-center gap-1 px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 text-xs font-mono transition-colors"
         >
           NEXT <ChevronRight size={14} />
-        </button>
-      </div>
-
-      <div className="mt-6 flex justify-between">
-        <button
-          onClick={handleDownload}
-          className="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-4 py-3 rounded-lg font-bold flex items-center gap-2 transition-all text-xs"
-        >
-          <Download size={16} /> DOWNLOAD DATASET (CSV)
-        </button>
-
-        <button
-          onClick={onProceed}
-          disabled={isTrainingInProgress}
-          className="bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold shadow-lg shadow-green-900/20 flex items-center gap-2 transition-all"
-        >
-          {isTrainingInProgress ? (
-            <><Loader className="animate-spin" size={18} /> TRAINING...</>
-          ) : (
-            <>APPROVE & TRAIN MODEL <ArrowRight size={18} /></>
-          )}
         </button>
       </div>
     </div>

@@ -279,10 +279,9 @@ async def run_training_task():
             result_dict["data_source"] = "training_fallback"  # Mark as fallback
             prediction_result = PredictionResult(**result_dict)
         add_log(PipelineStage.TRAINING, "Training complete. Model saved.")
-        # IMPORTANT: Stay in TRAINING stage so user can review results
-        # User must manually click "Proceed to Inference" button
-        print(f"[TRAINING] Staying in TRAINING stage for user review", flush=True)
-        add_log(PipelineStage.TRAINING, "Review training results and click 'Proceed' when ready.")
+        # Stay in TRAINING to allow frontend to detect completion and navigate
+        print(f"[TRAINING] Training complete, staying in TRAINING stage", flush=True)
+        add_log(PipelineStage.TRAINING, "Training complete. Results ready.")
     except Exception as e:
         print(f"[TRAINING] ERROR: {str(e)}", flush=True)
         import traceback

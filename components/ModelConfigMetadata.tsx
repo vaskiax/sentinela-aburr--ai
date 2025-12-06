@@ -79,13 +79,13 @@ const ModelConfigMetadata: React.FC<ModelConfigMetadataProps> = ({ metadata }) =
               <p className="text-sm font-bold text-blue-300">{granularityLabel}</p>
             </div>
 
-            {/* Lookback - in same units as Forecast */}
+            {/* Lookback - same as forecast horizon */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
               <p className="text-[10px] text-slate-400 font-mono uppercase mb-1">Lookback</p>
               <div className="flex items-center gap-1">
                 <Clock size={12} className="text-yellow-400" />
                 <p className="text-sm font-bold text-yellow-300">
-                  {convertLookbackToUnits()} {getUnitLabel()}
+                  {metadata.horizon_units ?? '--'} {getUnitLabel()}
                 </p>
               </div>
             </div>

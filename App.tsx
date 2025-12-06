@@ -24,6 +24,7 @@ import { useEffect } from 'react';
 function App() {
   const [viewMode, setViewMode] = useState<'DASHBOARD' | 'ARCHITECTURE' | 'DOCS'>('DASHBOARD');
   const [pipelineStep, setPipelineStep] = useState<PipelineStage>('DASHBOARD');
+  const [backendStage, setBackendStage] = useState<PipelineStage>('DASHBOARD');
   const [isInferenceSectionOpen, setIsInferenceSectionOpen] = useState(false);
 
   const [scrapingConfig, setScrapingConfig] = useState<ScrapingConfig>({
@@ -48,16 +49,20 @@ function App() {
       try {
         const status = await api.getStatus();
         setLogs(status.logs);
+        setBackendStage(status.stage); // Track backend stage separately
 
         // Only update stage from backend if we're in a processing state
-        // Don't override user navigation (DASHBOARD, CONFIGURATION, DATA_PREVIEW)
+        // Don't override user navigation (DASHBOARD, CONFIGURATION)
         const processingStages: PipelineStage[] = ['SCRAPING', 'TRAINING'];
         const isProcessing = processingStages.includes(pipelineStep);
 
         // Special case: Allow transition from CONFIGURATION to DATA_PREVIEW (for CSV upload)
         const allowConfigToPreview = pipelineStep === 'CONFIGURATION' && status.stage === 'DATA_PREVIEW';
+        
+        // Special case: Allow transition from DATA_PREVIEW to TRAINING when backend starts training
+        const allowPreviewToTraining = pipelineStep === 'DATA_PREVIEW' && status.stage === 'TRAINING';
 
-        if ((isProcessing && status.stage !== pipelineStep) || allowConfigToPreview) {
+        if ((isProcessing && status.stage !== pipelineStep) || allowConfigToPreview || allowPreviewToTraining) {
           setPipelineStep(status.stage);
         }
 
@@ -75,6 +80,7 @@ function App() {
           if (res && res.model_metadata && res.model_metadata.model_name) {
             console.log('[Frontend] Training complete, loading fresh result:', res.model_metadata.model_name);
             setResult(res);
+            // Don't auto-navigate - let user review training metrics first
           }
         }
         // Load result when reaching INFERENCE or DASHBOARD stage
@@ -316,7 +322,7 @@ function App() {
               <DataPreview 
                 data={scrapedData} 
                 onProceed={handleTrainModel}
-                isTrainingInProgress={logs.some(log => log.stage === 'TRAINING' && log.status === 'success')}
+                isTrainingInProgress={backendStage === 'TRAINING'}
                 onViewTraining={() => setPipelineStep('TRAINING')}
               />
             </div>
