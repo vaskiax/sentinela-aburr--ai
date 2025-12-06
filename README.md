@@ -1,5 +1,7 @@
 # Sentinela Aburrá — Future Risk Forecasting Platform
 
+![Dashboard Preview](backend/data/sentinela_dashboard_2025-12-06.png)
+
 **Sentinela Aburrá** is a machine learning operations platform for **relative risk forecasting** in the Valle de Aburrá region (Medellín, Colombia). It predicts elevated threat levels from precursor signals—not specific crimes—using supervised ML models trained on historical trigger events and criminal activity data.
 
 ---

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ShieldAlert, Play, RefreshCw, ChevronRight, Activity, Target, BookOpen, Database, Settings, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { ShieldAlert, Play, RefreshCw, ChevronRight, Activity, Target, BookOpen, Settings, AlertTriangle, ChevronDown, ChevronUp, Camera } from 'lucide-react';
 import PipelineStatus from './components/PipelineStatus';
 import ProjectArchitecture from './components/ProjectArchitecture';
 import PipelineConfig from './components/PipelineConfig';
@@ -43,6 +43,7 @@ function App() {
 
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [scrapeStats, setScrapeStats] = useState<CleaningStats | undefined>(undefined);
+  const dashboardRef = useRef<HTMLDivElement>(null);
 
   // Polling for status updates
   useEffect(() => {
@@ -176,53 +177,26 @@ function App() {
     }
   };
 
-  const downloadReport = () => {
-    console.log("Attempting download...");
-    if (!result) {
-      alert("No results to export yet.");
-      return;
-    }
-
+  const downloadReport = async () => {
     try {
-      // 1. Prediction Summary CSV
-      const summaryData = [
-        ['Metric', 'Value'],
-        ['Risk Score', result.risk_score],
-        ['Risk Level', result.risk_score > 70 ? 'CRITICAL' : 'ELEVATED'],
-        ['Predicted Crime', result.expected_crime_type],
-        ['Forecast Duration', `${result.duration_days} days`],
-        ['Affected Zones', result.affected_zones.join('; ')]
-      ];
-
-      // 2. Zone Risks CSV
-      const zoneData = [['Zone', 'Risk Score']];
-      (result.zone_risks || []).forEach(z => zoneData.push([z.zone, z.risk.toString()]));
-
-      // 3. Scraped Data CSV
-      const evidenceData = [['Date', 'Headline', 'Source', 'Relevance']];
-      scrapedData.forEach(item => evidenceData.push([item.date, item.headline, item.source, item.relevance_score.toString()]));
-
-      // Helper to create blob
-      const createCSV = (rows: (string | number)[][]) => rows.map(r => r.join(',')).join('\n');
-
-      const csvContent = "--- SUMMARY ---\n" + createCSV(summaryData) +
-        "\n\n--- ZONE RISKS ---\n" + createCSV(zoneData) +
-        "\n\n--- EVIDENCE LOG ---\n" + createCSV(evidenceData);
-
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Sentinela_Report_${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a); // Append to body to ensure click works
-      a.click();
-      document.body.removeChild(a); // Cleanup
-      window.URL.revokeObjectURL(url);
-      console.log("Download triggered.");
+      if (!dashboardRef.current) {
+        alert('Dashboard not ready to capture');
+        return;
+      }
+      const { default: html2canvas } = await import('html2canvas');
+      const canvas = await html2canvas(dashboardRef.current, {
+        backgroundColor: '#0f172a',
+        scale: 2,
+        useCORS: true,
+      });
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `sentinela_dashboard_${new Date().toISOString().split('T')[0]}.png`;
+      link.click();
     } catch (e) {
-      console.error("Export failed:", e);
-      alert("Export failed. Check console.");
+      console.error('Snapshot export failed:', e);
+      alert('Snapshot export failed. Check console.');
     }
   };
 
@@ -343,7 +317,7 @@ function App() {
       case 'DASHBOARD':
       default:
         return (
-          <div className="flex flex-col gap-6 h-full overflow-y-auto pr-2 custom-scrollbar">
+          <div ref={dashboardRef} className="flex flex-col gap-6 h-full overflow-y-auto pr-2 custom-scrollbar">
             {/* Header */}
             <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
               <div>
@@ -352,7 +326,7 @@ function App() {
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={downloadReport} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-green-400 text-xs font-bold rounded border border-slate-700 flex items-center gap-2">
-                  <Database size={14} /> EXPORT DATA
+                  <Camera size={14} /> EXPORT SNAPSHOT
                 </button>
               </div>
             </div>
