@@ -141,12 +141,13 @@ class Predictor:
         
         # FILTER BY DATE RANGE from config
         if hasattr(config, 'date_range_start') and config.date_range_start:
-            date_threshold = pd.to_datetime(config.date_range_start)
+            date_start = pd.to_datetime(config.date_range_start)
+            date_end = pd.to_datetime(config.date_range_end) if (hasattr(config, 'date_range_end') and config.date_range_end) else pd.Timestamp.today()
             original_count = len(df)
-            df = df[df['date'] >= date_threshold]
+            df = df[(df['date'] >= date_start) & (df['date'] <= date_end)]
             filtered_count = original_count - len(df)
             if filtered_count > 0:
-                print(f"[Data Filter] Removed {filtered_count} articles before {config.date_range_start} ({original_count} → {len(df)})", flush=True)
+                print(f"[Data Filter] Removed {filtered_count} articles outside range {config.date_range_start} to {config.date_range_end} ({original_count} → {len(df)})", flush=True)
             # Verify date range after filter
             if len(df) > 0:
                 print(f"[Data Filter] DataFrame date range: {df['date'].min()} to {df['date'].max()}", flush=True)

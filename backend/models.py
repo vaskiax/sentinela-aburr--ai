@@ -35,6 +35,7 @@ class ScrapingConfig(BaseModel):
     target_organizations: List[str]
     local_combos: List[str]
     date_range_start: str
+    date_range_end: Optional[str] = None
     predictor_events: List[str]
     predictor_ranks: List[str]
     target_crimes: List[str]
